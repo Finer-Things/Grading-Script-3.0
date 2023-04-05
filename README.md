@@ -1,2 +1,4 @@
 # Grading-Script-3.0
- This started as a refactor of the Grading Script 2.0, but it's quickly becoming capable of a lot more. 
+ This started as a refactor of the Grading Script 2.0 with lots of smaller classes that "talk to each other", but it's quickly becoming capable of a lot more because of this new design. One of the biggest perks is being able to create a student class that will keep a roster of every student I've had as well as all of the courses they've been in. This insfrastructure is already in the code, but I would like to implement statistics for class ranking, percentile on grade categories (particularly midterms and finals) and find a nice data visualization that would present all of this information quickly. 
+ 
+ Plese see the Grading Script 2.0 if you would like to see a completed version used by a Jupyter Notebook to calculate grades and generate data visualizations based on the student data. 
