@@ -25,7 +25,7 @@ class Course:
         self.main_spreadsheet = None # Spreadsheet class for computing totals that will be created later
         self.roster = []
 
-        # Make Directory
+        # Make Directory -- I couldn't get this to work with the master directory for the file
         # path = r'C:\Users\natha\Python Stuff\Administration, Grading, etc for Teaching'
         # sys.path.append(path)
         # if self.quarter != None:
@@ -143,6 +143,35 @@ class Course:
         plt.savefig(f"Images/{self.quarter} {self.name} Grade Category Pie Chart.png", bbox_inches = "tight")
         plt.show()
         plt.close()
+
+    def print_student_grade_breakdown(self, student_name, position = None, use_last_name = False):
+        if use_last_name == True:
+            first_or_last_name = "Last Name"
+        else:
+            first_or_last_name = "First Name"
+        display_list = ["First Name", "Last Name", "Grade"]+[grade_category+" Total" for grade_category in self.grade_item_categories]+["Letter Grade"]
+        print_dataframe = self.grades[self.grades[first_or_last_name].apply(lambda entry: student_name.lower() in entry.lower())][display_list]
+        if position == None:
+            for category in display_list:
+                print(f"{str(category)[:10]:13}|", end="")
+            print("")
+            for row in print_dataframe.itertuples():
+                for index, category in enumerate(display_list):
+                    print(f"{str(row[index+1])[:13]:13}|", end="")
+                print("")
+        else:
+            print_list = print_dataframe.iloc[position]
+            for item in display_list:
+                print(f"{str(item)[:13]:13}|", end="")
+            print("")
+            for item in print_list:
+                print(f"{str(item)[:10]:13}|", end="")
+            print("")
+    
+    
+
+
+
 
 
 
