@@ -41,6 +41,57 @@ class Course:
     def __str__(self):
         return f"{self.quarter} {self.name}"
     
+    def create_grade_columns(self, great_effort_rule = None, final_condition = None):
+        """Used in the create_master_spreadsheet method to calculate the grade percentage as well as the letter grade.
+        This method uses the letter_grade_assigner grading function."""
+        # Great Effort Rule Check
+        if hasattr(self, "great_effort_rule"):
+            great_effort_rule = self.great_effort_rule
+        elif great_effort_rule == None: 
+            great_effort_rule = False
+        
+        # Final Condition Check
+        if hasattr(self, "final_condition"):
+            final_condition = self.final_condition
+        elif final_condition == False:
+            final_condition = False
+        
+        df = self.master_spreadsheet.df
+        def grade_calculator(row):
+            weighted_average_numerator = sum([row[category.name + " Total"]*category.percent_weight for category in self.grade_categories])
+            weighted_average_denominator = sum([category.percent_weight for category in self.grade_categories if category.spreadsheet_to_grade_items_hash[self.master_spreadsheet.source] != [] ])
+            """In the weighted average denominator above, note the condition at the end of the list grade items for each category needs to be non-empty in order for that category's
+            percent weight to be counted in the computation. This means that rather than missing 30% of your grade because you haven't taken the final yet, instead you would just 
+            see your grade without the final being considered, your 'before-the-final' grade."""
+            # None is returned if there are no assignments found in any category. 
+            if weighted_average_denominator == 0:
+                first_name = row["First Name"]
+                raise Exception(f"The student {first_name} has no recorded assignments recorded in any grading category.")
+            return np.round(weighted_average_numerator/weighted_average_denominator, decimals=2)
+            
+        # Applying the grad_calculator function
+        df["Grade"] = df.apply(grade_calculator , axis=1)
+        
+        """Checking the course for great effort rule and final_condition attributes before using them to compute letter grades. 
+        They can also be fed into the creat_grade_columns method directly."""
+        # Great Effort Rule Check
+        if hasattr(self, "great_effort_rule"):
+            great_effort_rule = self.great_effort_rule
+        elif great_effort_rule == None: 
+            great_effort_rule = False
+        
+        # Final Condition Check
+        if hasattr(self, "final_condition"):
+            final_condition = self.final_condition
+        elif final_condition == False:
+            final_condition = False
+        df["Letter Grade"] = df.apply(lambda row: letter_grade_assigner(row, final_condition, 
+                                                                        great_effort_rule, 
+                                                                        final_grade_column_name = [column_name for column_name in df.columns if "final" in column_name.lower()][0]
+                                                                        ), 
+                                      axis=1)
+        
+
     def create_master_spreadsheet(self):
         self.master_spreadsheet = MasterSpreadsheet(self)
         ### Step 1: Merging the spreadsheets
@@ -64,9 +115,11 @@ class Course:
                 self.master_spreadsheet.df = pd.merge(self.master_spreadsheet.df, webwork_spreadsheet.df, on=self.id_format, how ="left")
                 self.master_spreadsheet.max_points_hash = self.master_spreadsheet.max_points_hash | webwork_spreadsheet.max_points_hash
         
-            # Adding all of the columns that match each grade category
-            for grade_category in self.grade_categories:
-                grade_category.spreadsheet_to_grade_items_hash[self.master_spreadsheet.source] = [column for column in self.master_spreadsheet.df.columns if grade_category.name in column]
+        # Adding all of the columns that match each grade category
+        """For each grading category, say, homework.name = 'Homework', then a dictionary key will be added:
+        homework.spreadsheet_to_grade_items_hash["Master"] = [*All columns in the master spreadsheet with that category name*]"""
+        for grade_category in self.grade_categories:
+            grade_category.spreadsheet_to_grade_items_hash[self.master_spreadsheet.source] = [column for column in self.master_spreadsheet.df.columns if grade_category.name in column]
         
         ### Step 2: Instantiating/updating students from the rows of the new dataframe
         # Definition of the function to be applied below. For each row, the student info will either instantiate a new student or add the student's course info to the course. 
@@ -86,8 +139,10 @@ class Course:
         self.roster.sort(key = lambda student: student.first_name)
         
         ### Step 3: Setting the Grade Category Columns, Computing their totals, and computing grades/assigning letter grades. THIS SHOULD BE BROKEN UP IN THE FUTURE SO CURVING CAN HAPPEN!
-        # Computing Category Totals
-        # grade_category.spreadsheet_to_grade_items_hash[self.master_spreadsheet.source] = [column for column in self.master_spreadsheet.df.columns if grade_category.name in column]
+        """Computing Category Totals spreadsheet_to_grade_items_hash is done as follows:
+        The object is the grade category, and the spreadsheet source (in this case "Master") is stored as the key for the dictionary stored in the attribute 
+        spreadsheet_to_grade_items_hash. The definition is used below. 
+        grade_category.spreadsheet_to_grade_items_hash[self.master_spreadsheet.source] = [column for column in self.master_spreadsheet.df.columns if grade_category.name in column]"""
         for grade_category in self.grade_categories:
             if grade_category.assignment_weighting == "equal":
                 for grade_cat_col_name in grade_category.spreadsheet_to_grade_items_hash[self.master_spreadsheet.source]:
@@ -111,7 +166,7 @@ class Course:
             else:
                 self.master_spreadsheet.df[f"{grade_category.name} Total"] = 0
         # Computing grades and assigning letter grades
-        #
+        self.create_grade_columns()
     
     def create_pie_chart(self, renaming_dictionary = {}):
         # Making sure there's an images folder
@@ -149,8 +204,8 @@ class Course:
             first_or_last_name = "Last Name"
         else:
             first_or_last_name = "First Name"
-        display_list = ["First Name", "Last Name", "Grade"]+[grade_category+" Total" for grade_category in self.grade_item_categories]+["Letter Grade"]
-        print_dataframe = self.grades[self.grades[first_or_last_name].apply(lambda entry: student_name.lower() in entry.lower())][display_list]
+        display_list = ["First Name", "Last Name", "Grade"]+[grade_category.name+" Total" for grade_category in self.grade_categories]+["Letter Grade"]
+        print_dataframe = self.master_spreadsheet.df[self.master_spreadsheet.df[first_or_last_name].apply(lambda entry: student_name.lower() in entry.lower())][display_list]
         if position == None:
             for category in display_list:
                 print(f"{str(category)[:10]:13}|", end="")
@@ -275,20 +330,37 @@ class EgradesSpreadsheet(Spreadsheet):
         self.df["netID"] = self.df["Email"].apply(lambda entry: entry.split("@")[0])
 
 class WebworkSpreadsheet(Spreadsheet):
-    def __init__(self, course = None, file_name = None, df = None, id_format = None):
+    def __init__(self, course = None, file_name = None, df = None, id_format = None, id_column_name = None):
         super().__init__(course, file_name, df, id_format, id_column_name)
         self.source = "Webwork"
         """
         Still left to do: 
-        1) Identify the id column (based on its course's id_format) and, in the case of netID, create a new SID column with the first several letters of their emails addresses
+        1) [done for netID] Identify the id column (based on its course's id_format) and, in the case of netID, create a new SID column with the first several letters of their emails addresses
         2) Figure out format, stripping/cleaning the spaces out of the columns and column names, identifying the homework total column
         3) If we want to take a look at individual assignments, creating a max_points_hash attribute to track the maximum points for each assignment
         """
         self.max_points_hash = {"Homework": 100}
-        # If either of the lines below throw an error, it's because the column names aren't matching
+        # If the line below throws an error, it's because the column names aren't matching
         webwork_total_col_name = [col_name for col_name in self.df.columns if r"%score" in col_name][0]
-        id_col_name = [col_name for col_name in self.df.columns if "login ID" in col_name][0]
-        self.df.rename(columns = {webwork_total_col_name: "Homework", id_col_name: self.id_format}, inplace = True)
+
+        # Student ID olumn Name entered as an argument at instantiation
+        if id_column_name != None: 
+            self.df[self.course.id_format] = self.df[id_column_name]
+        # netID
+        elif self.course.id_format == "netID": 
+            id_column_name = [col_name for col_name in self.df.columns if "login ID" in col_name][0]
+            self.df[self.course.id_format] = self.df[id_column_name].apply(lambda entry: entry.split("@")[0])
+        # Perm #
+        elif self.course.id_format == "Perm #":
+            id_column_name = [col_name for col_name in self.df.columns if "ID number" in col_name][0]
+            self.df[self.course.id_format] = self.df[id_column_name]
+        # If we're here, then the program doesn't know where to look to identify students. So spreadsheet merging can't happen later. 
+        else:
+            raise Exception("The Webwork class cannot find the student id column because")
+        
+        self.df.rename(columns = {webwork_total_col_name: "Homework"}, inplace = True)
+        self.df = self.df[[self.course.id_format, "Homework"]]
+                    
 
         # Adding all of the columns that match each grade category
         for grade_category in self.course.grade_categories:
@@ -352,8 +424,6 @@ def letter_grade_assigner(row, final_condition = None, great_effort_rule = False
         were graded according to their final score. The great effort rule was not applied in this case, nor should it be. 
         Functionality: The variable num is used as a default for a letter grade assignment. You will see this not used in the case of being assigned B grades because the Great Effort Rule is based on their raw score. For the lines below, num could have been used instead of row["Final"] without change, but I think this could have easily muddied what was happening so I kept the "Final" argument. 
         """
-        if final_condition == None:
-            final_condition = self.final_condition
         
         if final_condition:
             num = max(row[grade_column_name], row[final_grade_column_name])
