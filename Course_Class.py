@@ -100,13 +100,14 @@ class Course:
         if gradescope_spreadsheet_list != []:
             gradescope_spreadsheet = gradescope_spreadsheet_list[0]
             self.master_spreadsheet.max_points_hash = gradescope_spreadsheet.max_points_hash
+            self.master_spreadsheet.df = gradescope_spreadsheet.df
                         
             # Egrades Spreadsheet Integration
             egrades_spreadsheet_list = [spreadsheet for spreadsheet in self.spreadsheets if spreadsheet.source == "Egrades"]
             if egrades_spreadsheet_list != []:
                 egrades_spreadsheet = egrades_spreadsheet_list[0]
                 egrades_spreadsheet.df = egrades_spreadsheet.df[['Enrl Cd', 'netID', 'Perm #', "Letter Grade Submitted", 'Email', 'ClassLevel', 'Major1', 'Major2']]
-                self.master_spreadsheet.df = pd.merge(gradescope_spreadsheet.df, egrades_spreadsheet.df, on=self.id_format, how ="right")
+                self.master_spreadsheet.df = pd.merge(self.master_spreadsheet.df, egrades_spreadsheet.df, on=self.id_format, how ="right")
             # Webwork Spreadsheet Integration
             webwork_spreadsheet_list = [spreadsheet for spreadsheet in self.spreadsheets if spreadsheet.source == "Webwork"]
             if webwork_spreadsheet_list != []:
@@ -130,8 +131,13 @@ class Course:
             else:
                 student = Student(row["netID"], row["First Name"], row["Last Name"], self, row["Perm #"])
 
-            if "math" in str(row["Major1"]).lower() or "math" in str(row["Major2"]).lower():
-                self.math_majors.append(student)
+            if hasattr(self, "egrades_spreadsheet"):
+                if not np.isnan(row["Major1"]):
+                    if "math" in str(row["Major1"]).lower():
+                        self.math_majors.append(student)
+                elif not np.isnan(row["Major2"]):
+                    if "math" in str(row["Major2"]).lower():
+                        self.math_majors.append(student)
             return student
         
         self.math_majors = []
@@ -292,11 +298,19 @@ class GradescopeSpreadsheet(Spreadsheet):
         self.source = "Gradescope"
         # More Stuff particular to Gradescope Spreadsheet like the max columns becoming an attribute and then deleting the junk columns
         # self.id_column_name = "SID" #Because SID is always used to indicate whatever Canvas or Gauchospace is using, whether perm or netID
-        if isinstance(self.df, pd.DataFrame):
-            self.set_max_points_info()
-            self.drop_junk_columns()
-        else:
+        if not isinstance(self.df, pd.DataFrame):
             print(f"Gradescope Spreadsheet {self} instantiated with no dataframe.")
+            return None
+
+        if isinstance(self.course, Course):
+            self.course.gradescope_spreadsheet = self
+        
+        self.set_max_points_info()
+        
+        # Adding a netID column in the case where Perm # is the id_format of the course. 
+        self.df["netID"] = self.df["Email"].apply(lambda email: email.split("@")[0])
+        
+        self.drop_junk_columns()
         
         # Renaming the SID ("Student ID") column to course.id_format name. That way it's "netID" for Canvas and "Perm #" for Gauchospace
         self.df.rename(columns = {"SID": self.course.id_format}, inplace = True)
@@ -329,6 +343,11 @@ class EgradesSpreadsheet(Spreadsheet):
         self.df.rename(columns = {"Grade": "Letter Grade Submitted"}, inplace = True)
         self.df["netID"] = self.df["Email"].apply(lambda entry: entry.split("@")[0])
 
+        if isinstance(self.course, Course):
+            self.course.egrades_spreadsheet = self
+        
+        
+
 class WebworkSpreadsheet(Spreadsheet):
     def __init__(self, course = None, file_name = None, df = None, id_format = None, id_column_name = None):
         super().__init__(course, file_name, df, id_format, id_column_name)
@@ -339,6 +358,9 @@ class WebworkSpreadsheet(Spreadsheet):
         2) Figure out format, stripping/cleaning the spaces out of the columns and column names, identifying the homework total column
         3) If we want to take a look at individual assignments, creating a max_points_hash attribute to track the maximum points for each assignment
         """
+        if isinstance(self.course, Course):
+            self.course.webwork_spreadsheet = self
+
         self.max_points_hash = {"Homework": 100}
         # If the line below throws an error, it's because the column names aren't matching
         webwork_total_col_name = [col_name for col_name in self.df.columns if r"%score" in col_name][0]
@@ -370,6 +392,11 @@ class MasterSpreadsheet(Spreadsheet):
     def __init__(self, course = None, file_name = None, df = None, id_format = None, id_column_name = "SID"):
         super().__init__(course, file_name, df, id_format, id_column_name)
         self.source = "Master"
+
+        if isinstance(self.course, Course):
+            self.course.master_spreadsheet = self
+        
+        
 
 
 
