@@ -22,8 +22,9 @@ class Course:
         if self.id_format not in ["netID", "Perm #"]:
             raise Exception('The attribute id_format must be either "netID" or "Perm #".')
         Course.all_courses.append(self)
-        self.main_spreadsheet = None # Spreadsheet class for computing totals that will be created later
+        self.master_spreadsheet = None # Spreadsheet class for computing totals that will be created later
         self.roster = []
+        self.curve_setter_list = []
 
         # Make Directory -- I couldn't get this to work with the master directory for the file
         # path = r'C:\Users\natha\Python Stuff\Administration, Grading, etc for Teaching'
@@ -132,11 +133,9 @@ class Course:
                 student = Student(row["netID"], row["First Name"], row["Last Name"], self, row["Perm #"])
 
             if hasattr(self, "egrades_spreadsheet"):
-                if not np.isnan(row["Major1"]):
-                    if "math" in str(row["Major1"]).lower():
+                if "math" in str(row.fillna("")["Major1"]).lower():
                         self.math_majors.append(student)
-                elif not np.isnan(row["Major2"]):
-                    if "math" in str(row["Major2"]).lower():
+                elif "math" in str(row.fillna("")["Major2"]).lower():
                         self.math_majors.append(student)
             return student
         
@@ -174,13 +173,24 @@ class Course:
         # Computing grades and assigning letter grades
         self.create_grade_columns()
     
-    def create_pie_chart(self, renaming_dictionary = {}):
+    def create_pie_chart(self, renaming_dictionary = {}, style = None):
+        """A figure of the pie chart will be saved in the Images folder. """
         # Making sure there's an images folder
         if not os.path.exists("Images"):
             os.mkdir("Images")
         
         # Completing the naming dictionary from the renaming dictionary
         naming_dictionary = {category.name:category.name for category in self.grade_categories} | renaming_dictionary
+        
+        # Setting up the style argument
+        style_list = ["seaborn-paper", "fivethirtyeight"] + mpl.style.available
+        if style == None:
+            style = "seaborn-paper"
+        elif isinstance(style, int):
+            style = style_list[style%len(style_list)]
+
+        sns.set()
+        # sns.set_palette("deep")
         
         #Pie Chart
         grade_items_list = [naming_dictionary[category.name] for category in self.grade_categories]
@@ -191,12 +201,12 @@ class Course:
         textprops = {"fontsize":30} # Font size of text in pie chart
 
         fig1, ax1 = plt.subplots()
-        with plt.style.context("seaborn-paper"):
+        with plt.style.context(style):
             a,b,m = ax1.pie(grade_item_percentages, 
                             labels = grade_items_list, 
                             radius = 2, 
                             explode=None, 
-                            # colors=colors, 
+                            colors=colors, 
                             autopct='%.0f%%', 
                             textprops=textprops)
             [m[i].set_color('white') for i in range(len(m))]
@@ -229,7 +239,87 @@ class Course:
                 print(f"{str(item)[:10]:13}|", end="")
             print("")
     
+
+    def plot_grade_item(self, 
+                    grade_item, 
+                    style = None,
+                    df=None, 
+                    max_score = 100, 
+                    auto_max_score = True, 
+                    stat = "count", 
+                    savefig = False, 
+                    graph_color="mediumpurple", 
+                    over_achiever_color = "rebeccapurple",
+                    mean_line_color="darkred", 
+                    mean_line_width = 1.5,
+                    mean_line_alpha=.95, 
+                    median_line_color="mediumblue", 
+                    median_line_width = 2,
+                    median_line_alpha=.95, 
+                    show_plot = True
+                   ):
+        """Plots a single grade item from one of the class's dataframes. """
+
+        def stat_label(list, median_line_color, mean_line_color):
+            #used for plotting functions -- the stats are printed on the bottom
+            return f"Size: {list[0]}, Mean ({mean_line_color}): {list[2]}, Median ({median_line_color}): {list[1]}, Std: {list[3]}, Min: {list[4]}, Max: {list[5]}"
+                    
+        style_list = ["seaborn-paper", "fivethirtyeight"] + mpl.style.available
+        
+        if style == None:
+            style = "seaborn-paper"
+        elif isinstance(style, int):
+            style = style_list[style%len(style_list)]
+
+        if df == None:
+            df=self.master_spreadsheet.df
+        
+        sns.set()
+        sns.set_palette("deep")
+        
+        with plt.style.context(style):
+            mpl.rcParams['text.color'] = graph_color
+            plt.figure(figsize = (17,6))
+            plt.rcParams["axes.titlesize"] = 30 
+            col = df[df[grade_item].notna()][grade_item]
+            stat_list = [col.count(), np.round(col.median(), decimals=1), np.round(col.mean(), decimals=1), np.round(col.std(), decimals=1), np.round(col.min(), decimals=1), np.round(col.max(), decimals=1)]
+            
+            #Grade Item Max Score -- Derived from the Max Points Function
+            if auto_max_score == True:
+                max_score = self.master_spreadsheet.max_points_hash[grade_item]
+
+            sns.histplot(col, 
+                        kde=True, 
+                        bins=[max_score/10*n for n in range(11)], 
+                        stat=stat, 
+                        #ax=axes[0], 
+                        color=graph_color).set(title = f"{grade_item.capitalize()}", 
+                                                xlabel = stat_label(stat_list, median_line_color = median_line_color, mean_line_color = mean_line_color)
+                                                )
+            if stat_list[-1] > max_score:
+                sns.histplot(df[max_score < df[grade_item]][grade_item], 
+                            bins=[max_score, stat_list[-1]], 
+                            color=over_achiever_color
+                            )
+            
+            #Dashed lines for means%
+            plt.axvline(df[grade_item].mean(), linestyle = "dashdot", linewidth = mean_line_width, color = mean_line_color, alpha = mean_line_alpha)
+
+
+            #Dotted Lines for Medians
+            plt.axvline(df[grade_item].median(), linestyle = "dashed", linewidth = median_line_width, color = median_line_color, alpha = median_line_alpha)
+
+
+
+
+        if savefig == True:
+            plt.savefig(f"{self.course_name}/images/{self.quarter_name} {self.course_name} {grade_item} Distribution.png", bbox_inches = "tight")
+        
+        if show_plot == True:
+            plt.show()
+            plt.close()
     
+        
 
 
 
@@ -308,7 +398,8 @@ class GradescopeSpreadsheet(Spreadsheet):
         self.set_max_points_info()
         
         # Adding a netID column in the case where Perm # is the id_format of the course. 
-        self.df["netID"] = self.df["Email"].apply(lambda email: email.split("@")[0])
+        if self.course.id_format == "Perm #":
+            self.df["netID"] = self.df["Email"].apply(lambda email: email.split("@")[0])
         
         self.drop_junk_columns()
         
@@ -404,9 +495,9 @@ class GradeCalculator:
     def __init__(self, course):
         self.course = course
     
-    def compute_standard_grades(self, main_spreadsheet = None):
-        if main_spreadsheet == None:
-            main_spreadsheet = self.course.main_spreadsheet
+    def compute_standard_grades(self, master_spreadsheet = None):
+        if master_spreadsheet == None:
+            master_spreadsheet = self.course.master_spreadsheet
 
 
 class Student:
@@ -431,6 +522,72 @@ class Student:
         
 
 
+class CurveSetter:
+    def __init__(self, value, grade_item_or_category, course = None, method = "Percent of Missing Points", spreadsheet = None, point_ceiling = False):
+        self.grade_item_or_category = grade_item_or_category
+        # Numerical value used in curving
+        self.value = value
+        # Setting the course value by the grade_item_category in the case that it's a GradeCategory
+        if course == None:
+            if isinstance(grade_item_or_category, GradeCategory):
+                course == self.grade_item_or_category.course
+            else: 
+                raise Exception("A value for course must be entered if the grade_item_or_category argument is not a GradeCategory.")
+        self.course = course
+        # Boolean answering whether or not values above 100% are allowed. 
+        self.point_ceiling = point_ceiling
+        # How the curve will be set (see valid method arguments below)
+        self.method = method
+        """
+        CurveSetter method arguments are:
+            "Percent of Missing Points" - returns a percentage (self.value %) of missing points from a perfect score
+            "New Ceiling" - Sets the Ceiling to something different
+            "Lower Ceiling to Highest Score" - is a specific example of "New Ceiling" that lowers the ceiling to the maximum score.
+            "Add Points" - adds points to everyone's point total
+            "Move Everyone Up" - is a specific example of "Add Points" that adds points to everyone so the maximum score is 100%
+        """
+        
+        # Determining the dataframe and column to be curved
+        # dataframe
+        if spreadsheet == None:
+            spreadsheet = self.course.master_spreadsheet
+        # Column to be curved    
+        if isinstance(self.grade_item_or_category, GradeCategory):
+            if self.grade_item_or_category.course = self.course:
+                self.curve_column = spreadsheet.df[self.grade_item_or_category.name + " Total"]
+            else:
+                raise Exception("The course for the argument grade_item_or_category does not match the course given.")
+        elif isinstance(self.grade_item_or_category, str):
+            if self.grade_item_or_category in spreadsheet.df.columns:
+                self.curve_column = spreadsheet.df[self.grade_item_or_category]
+            else:
+                raise Exception(f"The argument grade_item_or_category is not in {spreadsheet.df}.columns")
+        else:
+            raise Exception(f"The argument grade_item_or_category must be either a category of the course or a string.")
+        
+
+    def set_curve(self):
+        max_score = self.spreadsheet.max_points_hash[self.curve_column.name]
+        
+        # Curving
+        if self.method == "Percent of Missing Points":
+            self.curve_column = self.curve_column.apply(lambda entry: entry + self.value*.01*(max_score - entry)).apply(np.round, decimals = 2)
+        elif self.method == "New Ceiling":
+            if isinstance(self.grade_item_or_category, str):
+                self.spreadsheet.max_points_hash[self.curve_column.name] = self.value # Just resets the max points score
+            elif isinstance(self.grade_item_or_category, GradeCategory):
+                self.curve_column = self.curve_column.apply(lambda entry: entry*100/self.value).apply(np.round, decimals = 2) # Makes the percentage out of value% instead of 100%
+        elif self.method == "Lower Ceiling to Highest Score":
+            self.curve_column = self.curve_column.apply(lambda entry: entry + self.value*.01*(max_score - entry)).apply(np.round, decimals = 2)
+        elif self.method == "Add Points":
+            self.curve_column += self.value
+        elif self.method == "Move Everyone Up":
+            self.curve_column += max_score - self.curve_column.max()
+        
+
+        # Applying the ceiling if there needs to be one. 
+        if self.point_ceiling == True:
+            self.curve_column = self.curve_column.apply(lambda entry: min([entry, max_score]))
 
 
 
