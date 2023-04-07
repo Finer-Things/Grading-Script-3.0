@@ -74,7 +74,7 @@ class Course:
         df["Grade"] = df.apply(grade_calculator , axis=1)
         
         """Checking the course for great effort rule and final_condition attributes before using them to compute letter grades. 
-        They can also be fed into the creat_grade_columns method directly."""
+        They can also be fed into the create_grade_columns method directly."""
         # Great Effort Rule Check
         if hasattr(self, "great_effort_rule"):
             great_effort_rule = self.great_effort_rule
@@ -116,6 +116,14 @@ class Course:
                 #### Note that this may not work yet because we haven't found the column name associated with self.id_format (or even set it!) for the webwork spreadsheet class
                 self.master_spreadsheet.df = pd.merge(self.master_spreadsheet.df, webwork_spreadsheet.df, on=self.id_format, how ="left")
                 self.master_spreadsheet.max_points_hash = self.master_spreadsheet.max_points_hash | webwork_spreadsheet.max_points_hash
+        
+        print(self.master_spreadsheet.df["Midterm"].head(15))
+        # Curving individual columns before any totals are computed
+        curve_setters_for_grade_items = [curve_setter for curve_setter in self.curve_setter_list if isinstance(curve_setter.grade_item_or_category, str)]
+        for curve_setter in curve_setters_for_grade_items:
+            print(curve_setter)
+            curve_setter.set_curve()
+        print(self.master_spreadsheet.df["Midterm"].head(15))
         
         # Adding all of the columns that match each grade category
         """For each grading category, say, homework.name = 'Homework', then a dictionary key will be added:
@@ -170,6 +178,12 @@ class Course:
                 self.master_spreadsheet.df[f"{grade_category.name} Total"] = self.master_spreadsheet.df[f"{grade_category.name} Total"].apply(np.round, decimals=2)
             else:
                 self.master_spreadsheet.df[f"{grade_category.name} Total"] = 0
+ 
+        # Curving individual columns before any totals are computed
+        curve_setters_for_grade_items = [curve_setter for curve_setter in self.curve_setter_list if isinstance(curve_setter.grade_item_or_category, GradeCategory)]
+        for curve_setter in curve_setters_for_grade_items:
+            curve_setter.set_curve()
+
         # Computing grades and assigning letter grades
         self.create_grade_columns()
     
@@ -523,7 +537,15 @@ class Student:
 
 
 class CurveSetter:
-    def __init__(self, value, grade_item_or_category, course = None, method = "Percent of Missing Points", spreadsheet = None, point_ceiling = False):
+    def __init__(self, 
+                 value, 
+                 grade_item_or_category, 
+                 course = None, 
+                 method = "Percent of Missing Points", 
+                 spreadsheet = None, 
+                 point_ceiling = False, 
+                 custom_row_function = None
+                 ):
         self.grade_item_or_category = grade_item_or_category
         # Numerical value used in curving
         self.value = value
@@ -545,31 +567,38 @@ class CurveSetter:
             "Lower Ceiling to Highest Score" - is a specific example of "New Ceiling" that lowers the ceiling to the maximum score.
             "Add Points" - adds points to everyone's point total
             "Move Everyone Up" - is a specific example of "Add Points" that adds points to everyone so the maximum score is 100%
+            "Custom" - applies a custom function to the df in order to modify the column in question. 
+            Caution: If you use "Custom", you need your custom_row_function parameter to take a ROW argument, but the output needs to be the entry for the curved grade column. 
         """
-        
+        self.spreadsheet = spreadsheet
+        self.custom_row_function = custom_row_function
+
         # Determining the dataframe and column to be curved
         # dataframe
         if spreadsheet == None:
             spreadsheet = self.course.master_spreadsheet
+        # Adds this object to the list of grade setters for self.course.
+        self.course.curve_setter_list.append(self)
+
+    def set_curve(self):
+        if self.spreadsheet == None:
+            self.spreadsheet = self.course.master_spreadsheet
         # Column to be curved    
         if isinstance(self.grade_item_or_category, GradeCategory):
-            if self.grade_item_or_category.course = self.course:
-                self.curve_column = spreadsheet.df[self.grade_item_or_category.name + " Total"]
+            if self.grade_item_or_category.course == self.course:
+                self.curve_column = self.spreadsheet.df[self.grade_item_or_category.name + " Total"]
             else:
                 raise Exception("The course for the argument grade_item_or_category does not match the course given.")
         elif isinstance(self.grade_item_or_category, str):
-            if self.grade_item_or_category in spreadsheet.df.columns:
-                self.curve_column = spreadsheet.df[self.grade_item_or_category]
+            if self.grade_item_or_category in self.spreadsheet.df.columns:
+                self.curve_column = self.spreadsheet.df[self.grade_item_or_category]
             else:
-                raise Exception(f"The argument grade_item_or_category is not in {spreadsheet.df}.columns")
+                raise Exception(f"The argument grade_item_or_category is not in {self.spreadsheet.df}.columns")
         else:
             raise Exception(f"The argument grade_item_or_category must be either a category of the course or a string.")
         
-
-    def set_curve(self):
-        max_score = self.spreadsheet.max_points_hash[self.curve_column.name]
-        
         # Curving
+        max_score = self.spreadsheet.max_points_hash[self.curve_column.name]
         if self.method == "Percent of Missing Points":
             self.curve_column = self.curve_column.apply(lambda entry: entry + self.value*.01*(max_score - entry)).apply(np.round, decimals = 2)
         elif self.method == "New Ceiling":
@@ -583,6 +612,10 @@ class CurveSetter:
             self.curve_column += self.value
         elif self.method == "Move Everyone Up":
             self.curve_column += max_score - self.curve_column.max()
+        elif self.method == "Custom":
+            self.curve_column = self.spreadsheet.df.apply(self.custom_row_function, axis=1)
+        else:
+            raise Exception(f"A curve method entered was {self.method}. It must be one of the valid methods for this class")
         
 
         # Applying the ceiling if there needs to be one. 
