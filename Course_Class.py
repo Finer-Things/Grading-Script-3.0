@@ -26,7 +26,16 @@ class Course:
         self.roster = []
         self.curve_setter_list = []
 
-        # Make Directory -- I couldn't get this to work with the master directory for the file
+        """
+        Make Directory
+        The vision meant to be completed with this code was to create a folder for both the quarter and the course inside the Administrative folder. 
+        That way if I'm just working in a notebook file and I point to the spreadsheets for a course, everything including the spreadsheet for Egrades
+        can be generated as well as the folders. 
+        It was a cool idea, but...
+        I couldn't get the code below to work with the master directory we needed at the beginning of each notebook file to point to these classes. 
+        It was just creating all the folders inside the same folder as the notebook file. So I used the code to create an Images folder 
+        for the visualizations and that's it. 
+        """
         # path = r'C:\Users\natha\Python Stuff\Administration, Grading, etc for Teaching'
         # sys.path.append(path)
         # if self.quarter != None:
@@ -70,7 +79,7 @@ class Course:
                 raise Exception(f"The student {first_name} has no recorded assignments recorded in any grading category.")
             return np.round(weighted_average_numerator/weighted_average_denominator, decimals=2)
             
-        # Applying the grad_calculator function
+        # Compute a grade percentage by applying the grade_calculator function above
         df["Grade"] = df.apply(grade_calculator , axis=1)
         
         """Checking the course for great effort rule and final_condition attributes before using them to compute letter grades. 
@@ -117,7 +126,6 @@ class Course:
                 self.master_spreadsheet.df = pd.merge(self.master_spreadsheet.df, webwork_spreadsheet.df, on=self.id_format, how ="left")
                 self.master_spreadsheet.max_points_hash = self.master_spreadsheet.max_points_hash | webwork_spreadsheet.max_points_hash
         
-        print(self.master_spreadsheet.df["Midterm"].head(15))
         # Curving individual columns before any totals are computed
         curve_setters_for_grade_items = [curve_setter for curve_setter in self.curve_setter_list if isinstance(curve_setter.grade_item_or_category, str)]
         for curve_setter in curve_setters_for_grade_items:
@@ -126,8 +134,10 @@ class Course:
         print(self.master_spreadsheet.df["Midterm"].head(15))
         
         # Adding all of the columns that match each grade category
-        """For each grading category, say, homework.name = 'Homework', then a dictionary key will be added:
-        homework.spreadsheet_to_grade_items_hash["Master"] = [*All columns in the master spreadsheet with that category name*]"""
+        """
+        For each grading category, say, homework.name = 'Homework', then a dictionary key will be added:
+        homework.spreadsheet_to_grade_items_hash["Master"] = [*All columns in the master spreadsheet with that category name*]
+        """
         for grade_category in self.grade_categories:
             grade_category.spreadsheet_to_grade_items_hash[self.master_spreadsheet.source] = [column for column in self.master_spreadsheet.df.columns if grade_category.name in column]
         
@@ -145,10 +155,13 @@ class Course:
                         self.math_majors.append(student)
                 elif "math" in str(row.fillna("")["Major2"]).lower():
                         self.math_majors.append(student)
+            # Initializing this course for the student's grade_breakdown dictionary so that 
+            # grade_category: grade_breakdown pairs can be added with each grade category as the totals are computed later
+            student.grade_breakdown[self] = {}
             return student
         
         self.math_majors = []
-        self.master_spreadsheet.df["Student List"] = self.master_spreadsheet.df.apply(get_student_info_from_row, axis=1)
+        self.master_spreadsheet.df["Student"] = self.master_spreadsheet.df.apply(get_student_info_from_row, axis=1)
         self.roster.sort(key = lambda student: student.first_name)
         
         ### Step 3: Setting the Grade Category Columns, Computing their totals, and computing grades/assigning letter grades. THIS SHOULD BE BROKEN UP IN THE FUTURE SO CURVING CAN HAPPEN!
@@ -162,12 +175,16 @@ class Course:
                     self.master_spreadsheet.df[grade_cat_col_name] *= 100/self.master_spreadsheet.max_points_hash[grade_cat_col_name]
                     self.master_spreadsheet.max_points_hash[grade_cat_col_name] = 100
 
-            # This control flow ensures empty categories have a zero total. When grade columns are created, these will not be factored into grade calculations. 
+            # Computing the Category Total
             grade_items = grade_category.spreadsheet_to_grade_items_hash[self.master_spreadsheet.source]
-            if len(grade_items) < grade_category.number_of_dropped_assignments:
-                raise Exception(f"You have {len(grade_items)} grade items under the {grade_category} grading category and {grade_category.number_of_dropped_assignments} drop. You cannot drop more assignments than you have!")
+            
+            # Quick Adjustment to make sure there aren't as many dropped assignments (or more) than there are actual assignments in a grade category. 
+            # For example, if you plan on dropping the lowest 4 quizzes but there are only 3 quizzes on the gradebooks then this would make you drop the lowest 2 instead (for now). 
+            drop_num = grade_category.number_of_dropped_assignments
+            drop_num = min(drop_num, len(grade_items) - 1)
+            
+            # This control flow ensures empty categories have a zero total. When grade columns are created, these will not be factored into grade calculations. 
             if len(grade_items) > 0:
-                drop_num = grade_category.number_of_dropped_assignments
                 self.master_spreadsheet.df[f"{grade_category.name} Total"] = self.master_spreadsheet.df[grade_items].apply(lambda row: sum(sorted(row.fillna(0))[drop_num:]), axis=1)
                 self.master_spreadsheet.max_points_hash[f"{grade_category.name} Total"] = sum(sorted([self.master_spreadsheet.max_points_hash[item] for item in grade_items])[drop_num:])
                 
@@ -178,6 +195,11 @@ class Course:
                 self.master_spreadsheet.df[f"{grade_category.name} Total"] = self.master_spreadsheet.df[f"{grade_category.name} Total"].apply(np.round, decimals=2)
             else:
                 self.master_spreadsheet.df[f"{grade_category.name} Total"] = 0
+            
+            # Mapping the category total to a student attribute
+            for index, row in self.master_spreadsheet.df.iterrows():
+                student = row["Student"]
+                student.grade_breakdown[self][grade_category] = row.fillna(0)[f"{grade_category.name} Total"]
  
         # Curving individual columns before any totals are computed
         curve_setters_for_grade_items = [curve_setter for curve_setter in self.curve_setter_list if isinstance(curve_setter.grade_item_or_category, GradeCategory)]
@@ -524,15 +546,101 @@ class Student:
         self.first_name = first_name
         self.last_name = last_name
         self.perm_number = perm_number
-        # course is NOT used as an attribute, but rather as a launching point 
+        """
+        If the student is instantiated with a course, then 
+        1) That course is added to the student's course history and
+        2) The student is added to that courses's roster of students.
+        """
         if isinstance(course, Course):
             self.courses = [course]
+            self.courses[0].roster.append(self)
         Student.lookup_by_netID[self.netID] = self
         Student.lookup_by_perm[self.perm_number] = self
-        self.courses[0].roster.append(self)
+        """
+        This is a grede breakdown for each course in the student's course history. 
+        The keys are the courses the student has had, i.e. self.courses. 
+        The values are dictionaries for each course. 
+        For those dictionaries (for each course the student has taken), 
+        the keys are the Grade Categories for the course, i.e. course.grade_categories, 
+        and the values are the student's percent breakdown for each category. 
+
+        To summarize in code, 
+        1) self.grade_breakdown.keys() = self.courses
+        2) self.grade_breakdown.values() = [{category: percent_grade for category in course.grade_categories} for course in self.courses]
+        3) For each dictionary in self.grade_breakdown.values(), 
+            a) dictionary.keys() = course.grade_categories
+            b) dictionary.values() = [percent_grade for category in course.grade_categories].
+        """
+        self.grade_breakdown = {}
     
     def __str__(self):
         return f"{self.first_name} {self.last_name} {self.netID}"
+    
+
+    def create_pie_chart(self, course, renaming_dictionary = {}, style = None):
+        """A figure of the pie chart will be saved in the Images folder. """
+        # Making sure there's an images folder
+        if not os.path.exists("Images"):
+            os.mkdir("Images")
+        
+        if not os.path.exists("Images/Student Grade Breakdown Pie Charts"):
+            os.mkdir("Images/Student Grade Breakdown Pie Charts")
+
+        # Completing the naming dictionary from the renaming dictionary
+        naming_dictionary = {category.name:category.name for category in course.grade_categories} | renaming_dictionary
+        
+        # Setting up the style argument
+        style_list = ["seaborn-paper", "fivethirtyeight"] + mpl.style.available
+        if style == None:
+            style = "seaborn-paper"
+        elif isinstance(style, int):
+            style = style_list[style%len(style_list)]
+
+        sns.set()
+        # sns.set_palette("deep")
+        
+        # Pie Chart
+        # Generating the list of grade item percentages using the grading categories associated with the given course
+        grade_category_list = [naming_dictionary[category.name] for category in course.grade_categories]
+        grade_category_percent_weights = [category.percent_weight for category in course.grade_categories]
+
+        # Zipping in the empty labels and complementary percentages
+        # pie_chart_labels = [label for label in [naming_dictionary[cat.name], ""] for cat in course.grade_categories]
+        # pie_chart_percentages = [percentage for percentage in [self.grade_breakdown[course][category]*.01*category.percent_weight, (100-self.grade_breakdown[course][category]*.01*category.percent_weight)] for category in course.grade_categories]
+        from itertools import chain
+        pie_chart_labels = list(chain.from_iterable([[f"{naming_dictionary[category.name]}: {np.rint(self.grade_breakdown[course][category])}% of {category.percent_weight}", ""] for category in course.grade_categories]))
+        pie_chart_percentages = list(chain.from_iterable([[self.grade_breakdown[course][category]*.01*category.percent_weight, ((100-self.grade_breakdown[course][category])*.01*category.percent_weight)] for category in course.grade_categories]))
+        display_percentages = list(chain.from_iterable([[f"{self.grade_breakdown[course][category]}% of {category.percent_weight}%", ""] for category in course.grade_categories]))
+
+
+        #plt.pie(grade_item_percentages, labels = grade_items_list, autopct='%0.1f%%')
+        explode = [.05,.05,.05,.05, .05] # To slice the perticuler section
+        grade_percentage_colors = ["blue", "darkorange", "forestgreen", "purple",'g', "b"][:len(course.grade_categories)] # Color of each section
+        # The colors list is created by staggering white slices with the grade percentage colors. 
+        colors = list(chain.from_iterable([[grade_percentage_color, darken_color(grade_percentage_color)] for grade_percentage_color in grade_percentage_colors]))
+        textprops = {"fontsize":30} # Font size of text in pie chart
+
+        fig1, ax1 = plt.subplots()
+        with plt.style.context(style):
+            a,b,m = ax1.pie(pie_chart_percentages, 
+                            labels = pie_chart_labels, 
+                            radius = 2, 
+                            explode=None, 
+                            colors=colors, 
+                            autopct='%.0f%%', 
+                            wedgeprops = {"edgecolor" : "white",
+                                          'linewidth': 2,
+                                          'antialiased': True},
+                            textprops=textprops)
+            [m[i].set_color('white') for i in range(len(m)) if i%2 == 0]
+            [m[i].set_color('darkgrey') for i in range(len(m)) if i%2 == 1]
+            [m[i].set_text("") for i in range(len(m)) if i%2 == 1]
+            
+        plt.savefig(f"Images/Student Grade Breakdown Pie Charts/{self.first_name} {self.last_name} {course.quarter} {course.name} Grade Breakdown Pie Chart.png", bbox_inches = "tight")
+        plt.show()
+        plt.close()
+
+    
         
 
 
@@ -678,3 +786,21 @@ def letter_grade_assigner(row, final_condition = None, great_effort_rule = False
             return "F"
 
 
+def darken_color(color, amount=1.5):
+    """
+    Lightens the given color by multiplying (1-luminosity) by the given amount.
+    Input can be matplotlib color string, hex string, or RGB tuple.
+
+    Examples:
+    >> darken_color('g', 0.3)
+    >> darken_color('#F034A3', 0.6)
+    >> darken_color((.3,.55,.1), 0.5)
+    """
+    import matplotlib.colors as mc
+    import colorsys
+    try:
+        c = mc.cnames[color]
+    except:
+        c = color
+    c = colorsys.rgb_to_hls(*mc.to_rgb(c))
+    return colorsys.hls_to_rgb(c[0], 1 - amount * (1 - c[1]), c[2])
