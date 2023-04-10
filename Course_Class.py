@@ -129,9 +129,7 @@ class Course:
         # Curving individual columns before any totals are computed
         curve_setters_for_grade_items = [curve_setter for curve_setter in self.curve_setter_list if isinstance(curve_setter.grade_item_or_category, str)]
         for curve_setter in curve_setters_for_grade_items:
-            print(curve_setter)
             curve_setter.set_curve()
-        print(self.master_spreadsheet.df["Midterm"].head(15))
         
         # Adding all of the columns that match each grade category
         """
@@ -577,8 +575,19 @@ class Student:
         return f"{self.first_name} {self.last_name} {self.netID}"
     
 
-    def create_pie_chart(self, course, renaming_dictionary = {}, style = None):
+    def create_pie_chart(self, course = None, renaming_dictionary = {}, style = None):
         """A figure of the pie chart will be saved in the Images folder. """
+                
+        # Setting the Course Default to the last course the student attended
+        if course == None:
+            course = self.courses[-1]
+        # Setting up the style argument - default to seaborn-paper, and numbers can also be entered
+        style_list = ["seaborn-paper", "fivethirtyeight"] + mpl.style.available
+        if style == None:
+            style = "seaborn-paper"
+        elif isinstance(style, int):
+            style = style_list[style%len(style_list)]
+
         # Making sure there's an images folder
         if not os.path.exists("Images"):
             os.mkdir("Images")
@@ -589,13 +598,6 @@ class Student:
         # Completing the naming dictionary from the renaming dictionary
         naming_dictionary = {category.name:category.name for category in course.grade_categories} | renaming_dictionary
         
-        # Setting up the style argument
-        style_list = ["seaborn-paper", "fivethirtyeight"] + mpl.style.available
-        if style == None:
-            style = "seaborn-paper"
-        elif isinstance(style, int):
-            style = style_list[style%len(style_list)]
-
         sns.set()
         # sns.set_palette("deep")
         
@@ -608,7 +610,9 @@ class Student:
         # pie_chart_labels = [label for label in [naming_dictionary[cat.name], ""] for cat in course.grade_categories]
         # pie_chart_percentages = [percentage for percentage in [self.grade_breakdown[course][category]*.01*category.percent_weight, (100-self.grade_breakdown[course][category]*.01*category.percent_weight)] for category in course.grade_categories]
         from itertools import chain
-        pie_chart_labels = list(chain.from_iterable([[f"{naming_dictionary[category.name]}: {np.rint(self.grade_breakdown[course][category])}% of {category.percent_weight}", ""] for category in course.grade_categories]))
+        # Pie Chart Labels: the commented-out line below expresses the category as a percent grade out of the category weight. I think this probably hard for students to read. 
+        # pie_chart_labels = list(chain.from_iterable([[f"{naming_dictionary[category.name]}: {np.rint(self.grade_breakdown[course][category])}% of {category.percent_weight}", ""] for category in course.grade_categories]))
+        pie_chart_labels = list(chain.from_iterable([[f"Your {naming_dictionary[category.name]}", ""] for category in course.grade_categories]))
         pie_chart_percentages = list(chain.from_iterable([[self.grade_breakdown[course][category]*.01*category.percent_weight, ((100-self.grade_breakdown[course][category])*.01*category.percent_weight)] for category in course.grade_categories]))
         display_percentages = list(chain.from_iterable([[f"{self.grade_breakdown[course][category]}% of {category.percent_weight}%", ""] for category in course.grade_categories]))
 
@@ -617,7 +621,7 @@ class Student:
         explode = [.05,.05,.05,.05, .05] # To slice the perticuler section
         grade_percentage_colors = ["blue", "darkorange", "forestgreen", "purple",'g', "b"][:len(course.grade_categories)] # Color of each section
         # The colors list is created by staggering white slices with the grade percentage colors. 
-        colors = list(chain.from_iterable([[grade_percentage_color, darken_color(grade_percentage_color)] for grade_percentage_color in grade_percentage_colors]))
+        colors = list(chain.from_iterable([[grade_percentage_color, darken_color(grade_percentage_color, .7)] for grade_percentage_color in grade_percentage_colors]))
         textprops = {"fontsize":30} # Font size of text in pie chart
 
         fig1, ax1 = plt.subplots()
@@ -634,7 +638,76 @@ class Student:
                             textprops=textprops)
             [m[i].set_color('white') for i in range(len(m)) if i%2 == 0]
             [m[i].set_color('darkgrey') for i in range(len(m)) if i%2 == 1]
-            [m[i].set_text("") for i in range(len(m)) if i%2 == 1]
+            [m[i].set_text("") for i in range(len(m))]# if i%2 == 1]
+            
+        plt.savefig(f"Images/Student Grade Breakdown Pie Charts/{self.first_name} {self.last_name} {course.quarter} {course.name} Grade Breakdown Pie Chart.png", bbox_inches = "tight")
+        plt.show()
+        plt.close()
+
+    
+    def create_other_pie_chart(self, course = None, renaming_dictionary = {}, style = None):
+        """A figure of the pie chart will be saved in the Images folder. """
+                
+        # Setting the Course Default to the last course the student attended
+        if course == None:
+            course = self.courses[-1]
+        # Setting up the style argument - default to seaborn-paper, and numbers can also be entered
+        style_list = ["seaborn-paper", "fivethirtyeight"] + mpl.style.available
+        if style == None:
+            style = "seaborn-paper"
+        elif isinstance(style, int):
+            style = style_list[style%len(style_list)]
+
+        # Making sure there's an images folder
+        if not os.path.exists("Images"):
+            os.mkdir("Images")
+        
+        if not os.path.exists("Images/Student Grade Breakdown Pie Charts"):
+            os.mkdir("Images/Student Grade Breakdown Pie Charts")
+
+        # Completing the naming dictionary from the renaming dictionary
+        naming_dictionary = {category.name:category.name for category in course.grade_categories} | renaming_dictionary
+        
+        sns.set()
+        # sns.set_palette("deep")
+        
+        # Pie Chart
+        # Generating the list of grade item percentages using the grading categories associated with the given course
+        grade_category_list = [naming_dictionary[category.name] for category in course.grade_categories]
+        grade_category_percent_weights = [category.percent_weight for category in course.grade_categories]
+
+        # Zipping in the empty labels and complementary percentages
+        # pie_chart_labels = [label for label in [naming_dictionary[cat.name], ""] for cat in course.grade_categories]
+        # pie_chart_percentages = [percentage for percentage in [self.grade_breakdown[course][category]*.01*category.percent_weight, (100-self.grade_breakdown[course][category]*.01*category.percent_weight)] for category in course.grade_categories]
+        from itertools import chain
+        # Pie Chart Labels: the commented-out line below expresses the category as a percent grade out of the category weight. I think this probably hard for students to read. 
+        # pie_chart_labels = list(chain.from_iterable([[f"{naming_dictionary[category.name]}: {np.rint(self.grade_breakdown[course][category])}% of {category.percent_weight}", ""] for category in course.grade_categories]))
+        pie_chart_labels = [f"{naming_dictionary[category.name]}" for category in course.grade_categories] + [f"{category.percent_weight}% total weight" for category in course.grade_categories]
+        pie_chart_percentages = [self.grade_breakdown[course][category]*.01*category.percent_weight for category in course.grade_categories] + [((100-self.grade_breakdown[course][category])*.01*category.percent_weight) for category in course.grade_categories]
+        display_percentages = list(chain.from_iterable([[f"{self.grade_breakdown[course][category]}% of {category.percent_weight}%", ""] for category in course.grade_categories]))
+
+
+        #plt.pie(grade_item_percentages, labels = grade_items_list, autopct='%0.1f%%')
+        explode = [.05,.05,.05,.05, .05] # To slice the perticuler section
+        grade_percentage_colors = ["blue", "darkorange", "forestgreen", "purple",'g', "b"][:len(course.grade_categories)] # Color of each section
+        # The colors list is created by staggering white slices with the grade percentage colors. 
+        colors = [grade_percentage_color for grade_percentage_color in grade_percentage_colors] + [darken_color(grade_percentage_color, 1.2) for grade_percentage_color in grade_percentage_colors]
+        textprops = {"fontsize":30} # Font size of text in pie chart
+
+        fig1, ax1 = plt.subplots()
+        with plt.style.context(style):
+            a,b,m = ax1.pie(pie_chart_percentages, 
+                            labels = pie_chart_labels, 
+                            radius = 2, 
+                            explode=None, 
+                            colors=colors, 
+                            autopct='%.0f%%', 
+                            wedgeprops = {"edgecolor" : "white",
+                                          'linewidth': 2,
+                                          'antialiased': True},
+                            textprops=textprops)
+            [m[i].set_color('white') for i in range(len(m))]
+            [m[i].set_text("") for i in range(len(m)) if i > 2]
             
         plt.savefig(f"Images/Student Grade Breakdown Pie Charts/{self.first_name} {self.last_name} {course.quarter} {course.name} Grade Breakdown Pie Chart.png", bbox_inches = "tight")
         plt.show()
@@ -689,46 +762,47 @@ class CurveSetter:
         self.course.curve_setter_list.append(self)
 
     def set_curve(self):
+        # Column to be curved    
         if self.spreadsheet == None:
             self.spreadsheet = self.course.master_spreadsheet
-        # Column to be curved    
         if isinstance(self.grade_item_or_category, GradeCategory):
             if self.grade_item_or_category.course == self.course:
-                self.curve_column = self.spreadsheet.df[self.grade_item_or_category.name + " Total"]
+                curve_column = self.spreadsheet.df[self.grade_item_or_category.name + " Total"]
             else:
                 raise Exception("The course for the argument grade_item_or_category does not match the course given.")
         elif isinstance(self.grade_item_or_category, str):
             if self.grade_item_or_category in self.spreadsheet.df.columns:
-                self.curve_column = self.spreadsheet.df[self.grade_item_or_category]
+                curve_column = self.spreadsheet.df[self.grade_item_or_category]
             else:
                 raise Exception(f"The argument grade_item_or_category is not in {self.spreadsheet.df}.columns")
         else:
             raise Exception(f"The argument grade_item_or_category must be either a category of the course or a string.")
         
         # Curving
-        max_score = self.spreadsheet.max_points_hash[self.curve_column.name]
+        max_score = self.spreadsheet.max_points_hash[curve_column.name]
         if self.method == "Percent of Missing Points":
-            self.curve_column = self.curve_column.apply(lambda entry: entry + self.value*.01*(max_score - entry)).apply(np.round, decimals = 2)
+            self.spreadsheet.df[curve_column.name] = curve_column.apply(lambda entry: entry + self.value*.01*(max_score - entry)).apply(np.round, decimals = 2)
+            print(max_score)
         elif self.method == "New Ceiling":
             if isinstance(self.grade_item_or_category, str):
-                self.spreadsheet.max_points_hash[self.curve_column.name] = self.value # Just resets the max points score
+                self.spreadsheet.max_points_hash[curve_column.name] = self.value # Just resets the max points score
             elif isinstance(self.grade_item_or_category, GradeCategory):
-                self.curve_column = self.curve_column.apply(lambda entry: entry*100/self.value).apply(np.round, decimals = 2) # Makes the percentage out of value% instead of 100%
+                self.spreadsheet.df[curve_column.name] = curve_column.apply(lambda entry: entry*100/self.value).apply(np.round, decimals = 2) # Makes the percentage out of value% instead of 100%
         elif self.method == "Lower Ceiling to Highest Score":
-            self.curve_column = self.curve_column.apply(lambda entry: entry + self.value*.01*(max_score - entry)).apply(np.round, decimals = 2)
+            self.spreadsheet.df[curve_column.name] = curve_column.apply(lambda entry: entry + self.value*.01*(max_score - entry)).apply(np.round, decimals = 2)
         elif self.method == "Add Points":
-            self.curve_column += self.value
+            self.spreadsheet.df[curve_column.name] += self.value
         elif self.method == "Move Everyone Up":
-            self.curve_column += max_score - self.curve_column.max()
+            self.spreadsheet.df[curve_column.name] += max_score - curve_column.max()
         elif self.method == "Custom":
-            self.curve_column = self.spreadsheet.df.apply(self.custom_row_function, axis=1)
+            self.spreadsheet.df[curve_column.name] = self.spreadsheet.df.apply(self.custom_row_function, axis=1)
         else:
             raise Exception(f"A curve method entered was {self.method}. It must be one of the valid methods for this class")
         
 
         # Applying the ceiling if there needs to be one. 
         if self.point_ceiling == True:
-            self.curve_column = self.curve_column.apply(lambda entry: min([entry, max_score]))
+            self.spreadsheet.df[curve_column.name] = curve_column.apply(lambda entry: min([entry, max_score]))
 
 
 
