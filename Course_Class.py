@@ -194,19 +194,23 @@ class Course:
             else:
                 self.master_spreadsheet.df[f"{grade_category.name} Total"] = 0
             
-            # Mapping the category total to a student attribute
-            for index, row in self.master_spreadsheet.df.iterrows():
-                student = row["Student"]
-                student.grade_breakdown[self][grade_category] = row.fillna(0)[f"{grade_category.name} Total"]
- 
+            
         # Curving individual columns before any totals are computed
         curve_setters_for_grade_items = [curve_setter for curve_setter in self.curve_setter_list if isinstance(curve_setter.grade_item_or_category, GradeCategory)]
         for curve_setter in curve_setters_for_grade_items:
             curve_setter.set_curve()
-
+        
         # Computing grades and assigning letter grades
         self.create_grade_columns()
     
+        # Mapping the category total to a student attribute
+        for index, row in self.master_spreadsheet.df.iterrows():
+            student = row["Student"]
+            student.grades[self] = (row.fillna(0)["Grade"], row["Letter Grade"])
+            for grade_category in self.grade_categories:
+                student.grade_breakdown[self][grade_category] = row.fillna(0)[f"{grade_category.name} Total"]
+ 
+
     def create_pie_chart(self, renaming_dictionary = {}, style = None):
         """A figure of the pie chart will be saved in the Images folder. """
         # Making sure there's an images folder
@@ -386,7 +390,7 @@ class GradeCategory:
         
 
     def __str__(self):
-        return f"Grade category {self.name} for {self.course}"
+        return f"{self.name} Category for {self.course}"
     
     def describe(self):
         return f"{self.name} is a grade category for {self.course}. \n" + \
@@ -549,6 +553,7 @@ class Student:
         1) That course is added to the student's course history and
         2) The student is added to that courses's roster of students.
         """
+        self.grades = {}
         if isinstance(course, Course):
             self.courses = [course]
             self.courses[0].roster.append(self)
@@ -574,7 +579,11 @@ class Student:
     def __str__(self):
         return f"{self.first_name} {self.last_name} {self.netID}"
     
-
+    def show_grade(self, course = None):
+        if course == None:
+            course = self.courses[-1]
+        return self.grades[course]
+    
     def create_pie_chart(self, course = None, renaming_dictionary = {}, style = None):
         """A figure of the pie chart will be saved in the Images folder. """
                 
@@ -682,7 +691,7 @@ class Student:
         from itertools import chain
         # Pie Chart Labels: the commented-out line below expresses the category as a percent grade out of the category weight. I think this probably hard for students to read. 
         # pie_chart_labels = list(chain.from_iterable([[f"{naming_dictionary[category.name]}: {np.rint(self.grade_breakdown[course][category])}% of {category.percent_weight}", ""] for category in course.grade_categories]))
-        pie_chart_labels = [f"{naming_dictionary[category.name]}" for category in course.grade_categories] + [f"{category.percent_weight}% total weight" for category in course.grade_categories]
+        pie_chart_labels = [f"{naming_dictionary[category.name]}" for category in course.grade_categories] + ["" for category in course.grade_categories]
         pie_chart_percentages = [self.grade_breakdown[course][category]*.01*category.percent_weight for category in course.grade_categories] + [((100-self.grade_breakdown[course][category])*.01*category.percent_weight) for category in course.grade_categories]
         display_percentages = list(chain.from_iterable([[f"{self.grade_breakdown[course][category]}% of {category.percent_weight}%", ""] for category in course.grade_categories]))
 
@@ -768,18 +777,20 @@ class CurveSetter:
         if isinstance(self.grade_item_or_category, GradeCategory):
             if self.grade_item_or_category.course == self.course:
                 curve_column = self.spreadsheet.df[self.grade_item_or_category.name + " Total"]
+                max_score = 100
             else:
                 raise Exception("The course for the argument grade_item_or_category does not match the course given.")
         elif isinstance(self.grade_item_or_category, str):
             if self.grade_item_or_category in self.spreadsheet.df.columns:
                 curve_column = self.spreadsheet.df[self.grade_item_or_category]
+                max_score = self.spreadsheet.max_points_hash[self.grade_item_or_category]
+        
             else:
                 raise Exception(f"The argument grade_item_or_category is not in {self.spreadsheet.df}.columns")
         else:
             raise Exception(f"The argument grade_item_or_category must be either a category of the course or a string.")
         
         # Curving
-        max_score = self.spreadsheet.max_points_hash[curve_column.name]
         if self.method == "Percent of Missing Points":
             self.spreadsheet.df[curve_column.name] = curve_column.apply(lambda entry: entry + self.value*.01*(max_score - entry)).apply(np.round, decimals = 2)
             print(max_score)
@@ -795,7 +806,7 @@ class CurveSetter:
         elif self.method == "Move Everyone Up":
             self.spreadsheet.df[curve_column.name] += max_score - curve_column.max()
         elif self.method == "Custom":
-            self.spreadsheet.df[curve_column.name] = self.spreadsheet.df.apply(self.custom_row_function, axis=1)
+            self.spreadsheet.df[curve_column.name] = self.spreadsheet.df.apply(self.custom_row_function, axis=1).apply(np.round, decimals=2)
         else:
             raise Exception(f"A curve method entered was {self.method}. It must be one of the valid methods for this class")
         
