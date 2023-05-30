@@ -8,18 +8,21 @@ from matplotlib.animation import FuncAnimation
 import time
 import requests
 import os
-import sys     
+import sys
+from typing import Optional
+from pydantic import BaseModel
 
 
 
 
 class Course:
     all_courses = []
-    def __init__(self, name = None, quarter = None, id_format = "netID", grade_categories = [], spreadsheets = []):
+    current_course = None
+    def __init__(self, name: str = None, quarter: str = None, id_format: str = "netID", grade_categories: list=[]):
         self.name = name
         self.quarter = quarter
         self.grade_categories = grade_categories
-        self.spreadsheets = spreadsheets
+        self.spreadsheets = []
         self.id_format = id_format #Either "netID" or "Perm #"
         if self.id_format not in ["netID", "Perm #"]:
             raise Exception('The attribute id_format must be either "netID" or "Perm #".')
@@ -27,6 +30,7 @@ class Course:
         self.master_spreadsheet = None # Spreadsheet class for computing totals that will be created later
         self.roster = []
         self.curve_setter_list = []
+        Course.current_course = self
 
         """
         Make Directory
@@ -50,26 +54,25 @@ class Course:
         #             os.mkdir(course_folder_name)
 
 
-    def __str__(self):
+    def __repr__(self) -> str:
+        """
+        Example: "Fall 2020 Math 101"
+        """
         return f"{self.quarter} {self.name}"
     
-    def create_grade_columns(self, great_effort_rule = None, final_condition = None):
+    def create_grade_columns(self, great_effort_rule: bool = True, final_condition: bool = False) -> None:
         """Used in the create_master_spreadsheet method to calculate the grade percentage as well as the letter grade.
         This method uses the letter_grade_assigner grading function."""
         # Great Effort Rule Check
         if hasattr(self, "great_effort_rule"):
             great_effort_rule = self.great_effort_rule
-        elif great_effort_rule == None: 
-            great_effort_rule = False
         
         # Final Condition Check
         if hasattr(self, "final_condition"):
             final_condition = self.final_condition
-        elif final_condition == False:
-            final_condition = False
         
         df = self.master_spreadsheet.df
-        def grade_calculator(row):
+        def grade_calculator(row: pd.Series) -> float:
             weighted_average_numerator = sum([row[category.name + " Total"]*category.percent_weight for category in self.grade_categories])
             weighted_average_denominator = sum([category.percent_weight for category in self.grade_categories if category.spreadsheet_to_grade_items_hash[self.master_spreadsheet.source] != [] ])
             """In the weighted average denominator above, note the condition at the end of the list grade items for each category needs to be non-empty in order for that category's
@@ -143,7 +146,7 @@ class Course:
         
         ### Step 2: Instantiating/updating students from the rows of the new dataframe
         # Definition of the function to be applied below. For each row, the student info will either instantiate a new student or add the student's course info to the course. 
-        def get_student_info_from_row(row):
+        def get_student_info_from_row(row: pd.Series) -> Student:
             if row["netID"] in Student.lookup_by_netID:
                 student = Student.lookup_by_netID[row["netID"]]
                 student.courses.append(self)
@@ -190,7 +193,7 @@ class Course:
                 
                 # Normalizing the Totals
                 self.master_spreadsheet.df[f"{grade_category.name} Total"] *= 100/self.master_spreadsheet.max_points_hash[f"{grade_category.name} Total"]
-                self.master_spreadsheet.max_points_hash[f"{grade_category} Total"] = 100
+                self.master_spreadsheet.max_points_hash[f"{grade_category.name} Total"] = 100
                 #Rounding to Two Decimal Places
                 self.master_spreadsheet.df[f"{grade_category.name} Total"] = self.master_spreadsheet.df[f"{grade_category.name} Total"].apply(np.round, decimals=2)
             else:
@@ -204,6 +207,10 @@ class Course:
         
         # Computing grades and assigning letter grades
         self.create_grade_columns()
+
+        # adding a grade_items attribute to each grade category
+        for grade_category in self.grade_categories:
+            grade_category.grade_items = grade_category.spreadsheet_to_grade_items_hash["Master"]
     
         # Mapping the category total to a student attribute
         for index, row in self.master_spreadsheet.df.iterrows():
@@ -213,7 +220,7 @@ class Course:
                 student.grade_breakdown[self][grade_category] = row.fillna(0)[f"{grade_category.name} Total"]
  
 
-    def create_pie_chart(self, renaming_dictionary = {}, style = None):
+    def create_pie_chart(self, renaming_dictionary: dict[str, str] = {}, style: str = "seaborn-paper") -> None:
         """A figure of the pie chart will be saved in the Images folder. """
         # Making sure there's an images folder
         if not os.path.exists("Images"):
@@ -224,9 +231,8 @@ class Course:
         
         # Setting up the style argument
         style_list = ["seaborn-paper", "fivethirtyeight"] + mpl.style.available
-        if style == None:
-            style = "seaborn-paper"
-        elif isinstance(style, int):
+        
+        if isinstance(style, int):
             style = style_list[style%len(style_list)]
 
         sns.set()
@@ -256,7 +262,7 @@ class Course:
         time.sleep(5)
         plt.close()
 
-    def print_student_grade_breakdown(self, student_name, position = None, use_last_name = False):
+    def print_student_grade_breakdown(self, student_name: str, position: Optional[int], use_last_name: bool = False) -> None:
         if use_last_name == True:
             first_or_last_name = "Last Name"
         else:
@@ -265,11 +271,11 @@ class Course:
         print_dataframe = self.master_spreadsheet.df[self.master_spreadsheet.df[first_or_last_name].apply(lambda entry: student_name.lower() in entry.lower())][display_list]
         if position == None:
             for category in display_list:
-                print(f"{str(category)[:10]:13}|", end="")
+                print(f"{repr(category)[:10]:13}|", end="")
             print("")
             for row in print_dataframe.itertuples():
                 for index, category in enumerate(display_list):
-                    print(f"{str(row[index+1])[:13]:13}|", end="")
+                    print(f"{repr(row[index+1])[:13]:13}|", end="")
                 print("")
         else:
             print_list = print_dataframe.iloc[position]
@@ -282,34 +288,33 @@ class Course:
     
 
     def plot_grade_item(self, 
-                    grade_item, 
-                    style = None,
-                    df=None, 
-                    max_score = 100, 
-                    auto_max_score = True, 
-                    stat = "count", 
-                    save_figure = False, 
-                    graph_color="mediumpurple", 
-                    over_achiever_color = "rebeccapurple",
-                    mean_line_color="darkred", 
-                    mean_line_width = 1.5,
-                    mean_line_alpha=.95, 
-                    median_line_color="mediumblue", 
-                    median_line_width = 2,
-                    median_line_alpha=.95, 
-                    show_plot = True
+                    grade_item: str, 
+                    style: int | str = "seaborn-paper",
+                    # int for index (with "wordwrap") in style_list, str for style name
+                    df: pd.DataFrame = None, 
+                    max_score: float = 100, 
+                    auto_max_score: bool = True, 
+                    stat: str = "count", 
+                    save_figure: bool = False, 
+                    graph_color: str = "mediumpurple", 
+                    over_achiever_color: str = "rebeccapurple",
+                    mean_line_color: str = "darkred", 
+                    mean_line_width: float = 1.5,
+                    mean_line_alpha: float = .95, 
+                    median_line_color: str = "mediumblue", 
+                    median_line_width: float = 2,
+                    median_line_alpha: float = .95, 
+                    show_plot: bool = True
                    ):
         """Plots a single grade item from one of the class's dataframes. """
 
-        def stat_label(list, median_line_color, mean_line_color):
+        def stat_label(list: list, median_line_color: str, mean_line_color: str) -> str:
             #used for plotting functions -- the stats are printed on the bottom
             return f"Size: {list[0]}, Mean ({mean_line_color}): {list[2]}, Median ({median_line_color}): {list[1]}, Std: {list[3]}, Min: {list[4]}, Max: {list[5]}"
                     
         style_list = ["seaborn-paper", "fivethirtyeight"] + mpl.style.available
         
-        if style == None:
-            style = "seaborn-paper"
-        elif isinstance(style, int):
+        if isinstance(style, int):
             style = style_list[style%len(style_list)]
 
         if df == None:
@@ -372,13 +377,14 @@ class Course:
 class GradeCategory:
     """Example Instantiation: homework = GradeCategory("Homework", 20, 1, "standard")
     Note that this will actually have an equal assignment weighting, not standard, because the number of assignments to drop is > 0."""
-    def __init__(self, name = None, course = None, percent_weight = 0, number_of_dropped_assignments = 0, assignment_weighting = "standard"):
+    def __init__(self, name: str | None = None, percent_weight: float = 0, number_of_dropped_assignments: int = 0, assignment_weighting: str = "standard", course: Course = Course.current_course):
         self.name = name
         self.course = course
         self.percent_weight = percent_weight
         self.assignment_weighting = assignment_weighting
         self.number_of_dropped_assignments = number_of_dropped_assignments
         self.spreadsheet_to_grade_items_hash = {}
+        self.grade_items = []
         
         # Adding the category to the course
         if isinstance(self.course, Course):
@@ -393,15 +399,21 @@ class GradeCategory:
             raise Exception('The attritube assignment_weighting must be either "standard" or "equal".')
         
 
-    def __str__(self):
+    def __repr__(self):
         return f"{self.name} Category for {self.course}"
     
-    def describe(self):
+    def describe(self) -> str:
         return f"{self.name} is a grade category for {self.course}. \n" + \
                 f"It's worth {self.percent_weight}% of the course grade and the lowest {self.number_of_dropped_assignments} grade items will be dropped. \n" + \
                 f"Its assignments have a(n) {self.assignment_weighting} weighting when the total is calculated."
 
-    def plot(self):
+    def plot(self, items: list | str = "all") -> None:
+        if items == "all":
+            for item in self.grade_items:
+                self.course.plot_grade_item(item)
+        elif isinstance(items, list):
+            for item in items:
+                self.course.plot_grade_item(item)
         self.course.plot_grade_item(f"{self.name} Total")
 
 class Spreadsheet:
@@ -410,7 +422,7 @@ class Spreadsheet:
        1) course attribute must be an instance of the Course class
        2) if the associated course has an id format already, it will be set automatically for the spreadsheet as well. 
     """
-    def __init__(self, course = None, file_name = None, df = None, id_format = None, id_column_name = None):
+    def __init__(self, file_name: str | None = None, df: pd.DataFrame | None = None, id_format: str | None = None, id_column_name: str = "SID", course: Course = Course.current_course):
         self.course = course
         self.file_name = file_name
         self.df = df
@@ -418,22 +430,23 @@ class Spreadsheet:
         self.id_column_name = id_column_name
         self.source = None
         # Adding this spreadsheet to the spreadsheet list for its course and inheriting the id_format from the course (if either is possible)
-        if isinstance(self.course, Course):
-            self.course.spreadsheets.append(self)
-            if self.course.id_format != None:
-                self.id_format = self.course.id_format 
-        
-        if self.file_name != None:
+        self.course.spreadsheets.append(self)
+        if self.course.id_format != None:
+            self.id_format = self.course.id_format 
+    
+        if isinstance(self.file_name, str):
             self.df = pd.read_csv(self.file_name)
 
 class GradescopeSpreadsheet(Spreadsheet):
-    def __init__(self, course = None, file_name = None, df = None, id_format = None, id_column_name = "SID"):
+    def __init__(self, file_name: str | None = None, df: pd.DataFrame | None = None, id_format: str | None = None, id_column_name: str = "SID", course: Course = Course.current_course):
         super().__init__(course, file_name, df, id_format, id_column_name)
         self.source = "Gradescope"
+        # ^^Setting the "source" attribute to where the spreadsheet instance's dataframe came from. For this class, they all come from Gradescope. 
+
         # More Stuff particular to Gradescope Spreadsheet like the max columns becoming an attribute and then deleting the junk columns
         # self.id_column_name = "SID" #Because SID is always used to indicate whatever Canvas or Gauchospace is using, whether perm or netID
         if not isinstance(self.df, pd.DataFrame):
-            print(f"Gradescope Spreadsheet {self} instantiated with no dataframe.")
+            print(f"{self} instantiated with no dataframe.")
             return None
 
         if isinstance(self.course, Course):
@@ -454,7 +467,7 @@ class GradescopeSpreadsheet(Spreadsheet):
         for grade_category in self.course.grade_categories:
             grade_category.spreadsheet_to_grade_items_hash[self.source] = [column for column in self.df.columns if grade_category.name in column]
     
-    def __str__(self):
+    def __repr__(self):
         return f"Gradescope Spreadsheet for {self.course}"
     
     def set_max_points_info(self):
@@ -472,9 +485,11 @@ class GradescopeSpreadsheet(Spreadsheet):
         self.df.drop(self.df.columns[junk_column_indices], axis=1, inplace=True)
 
 class EgradesSpreadsheet(Spreadsheet):
-    def __init__(self, course = None, file_name = None, df = None, id_format = None, id_column_name = None):
+    def __init__(self, file_name: str | None = None, df: pd.DataFrame | None = None, id_format: str | None = None, id_column_name: str | None = None, course: Course = Course.current_course):
         super().__init__(course, file_name, df, id_format, id_column_name)
         self.source = "Egrades"
+        # ^^Setting the "source" attribute to where the spreadsheet instance's dataframe came from. For this class, they all come from Gradescope. 
+
         self.df.rename(columns = {"Grade": "Letter Grade Submitted"}, inplace = True)
         self.df["netID"] = self.df["Email"].apply(lambda entry: entry.split("@")[0])
 
@@ -482,9 +497,11 @@ class EgradesSpreadsheet(Spreadsheet):
             self.course.egrades_spreadsheet = self       
 
 class WebworkSpreadsheet(Spreadsheet):
-    def __init__(self, course = None, file_name = None, df = None, id_format = None, id_column_name = None):
+    def __init__(self, file_name: str | None = None, df: pd.DataFrame | None = None, id_format: str | None = None, id_column_name: str | None = None, course: Course = Course.current_course):
         super().__init__(course, file_name, df, id_format, id_column_name)
         self.source = "Webwork"
+        # ^^Setting the "source" attribute to where the spreadsheet instance's dataframe came from. For this class, they all come from Gradescope. 
+
         """
         Still left to do: 
         1) [done for netID] Identify the id column (based on its course's id_format) and, in the case of netID, create a new SID column with the first several letters of their emails addresses
@@ -522,24 +539,22 @@ class WebworkSpreadsheet(Spreadsheet):
             grade_category.spreadsheet_to_grade_items_hash[self.source] = [column for column in self.df.columns if grade_category.name in column]
 
 class MasterSpreadsheet(Spreadsheet):
-    def __init__(self, course = None, file_name = None, df = None, id_format = None, id_column_name = "SID"):
+    def __init__(self, file_name: str | None = None, df: pd.DataFrame | None = None, id_format: str | None = None, id_column_name: str = "SID", course: Course = Course.current_course):
         super().__init__(course, file_name, df, id_format, id_column_name)
         self.source = "Master"
 
         if isinstance(self.course, Course):
             self.course.master_spreadsheet = self
         
-        
-
-
 
 class GradeCalculator:
-    def __init__(self, course):
+    def __init__(self, course: Course = Course.current_course):
         self.course = course
     
     def compute_standard_grades(self, master_spreadsheet = None):
         if master_spreadsheet == None:
             master_spreadsheet = self.course.master_spreadsheet
+        ## This class does nothing so far! I think I had planned to use it to compute grades, but I ended up just doing that in the .create_master_spreadsheet() method for the Course class.
 
 
 class Student:
@@ -547,24 +562,28 @@ class Student:
     lookup_by_netID = {}
     # Hash Table of all students based on perm_number
     lookup_by_perm = {}
-    def __init__(self, netID, first_name = None, last_name = None, course = None, perm_number = None):
+    # The default for the course argument is None in this case because students are not meant to be instantiated outside of these classes. They are meant to be instantiated by the .create_master_spreadsheet() Course method.
+    def __init__(self, netID: str, first_name: str | None = None, last_name: str | None = None, course: str | None = None, perm_number: str | None = None):
         self.netID = netID
         self.first_name = first_name
         self.last_name = last_name
         self.perm_number = perm_number
         """
         If the student is instantiated with a course, then 
-        1) That course is added to the student's course history and
-        2) The student is added to that courses's roster of students.
+            1) That course is added to the student's course history (self.courses: list).
+            2) The student is added to that courses's roster of students. 
+            3) The student is added to the Student.lookup_by_netID dictionary.
+            4) The student is added to the Student.lookup_by_perm dictionary.
         """
-        self.grades = {}
+        self.grades = {} # A dictionary with keys that are Course objects and values that are strings (for letter grades)
         if isinstance(course, Course):
             self.courses = [course]
             self.courses[0].roster.append(self)
         Student.lookup_by_netID[self.netID] = self
         Student.lookup_by_perm[self.perm_number] = self
+ 
         """
-        This is a grede breakdown for each course in the student's course history. 
+        Below is a grade breakdown for each course in the student's course history. 
         The keys are the courses the student has had, i.e. self.courses. 
         The values are dictionaries for each course. 
         For those dictionaries (for each course the student has taken), 
@@ -577,18 +596,28 @@ class Student:
         3) For each dictionary in self.grade_breakdown.values(), 
             a) dictionary.keys() = course.grade_categories
             b) dictionary.values() = [percent_grade for category in course.grade_categories].
+        
+        To summarize:
+        This dictionary is a dictionary of dictionaries that has the following argument flow:
+        course -> grade_category -> percentage that student got in that grade category
         """
-        self.grade_breakdown = {}
+        self.grade_breakdown = {} # A dictionary with keys that are the student's courses and with values that are lists of dictionaries (see 3a) and 3b) above for dictionary details)
     
-    def __str__(self):
+    def __repr__(self) -> str:
+        """
+        Output Format Example: "John Doe jdoe805"
+        """
         return f"{self.first_name} {self.last_name} {self.netID}"
     
-    def show_grade(self, course = None):
+    def show_grade(self, course: Course | None = None) -> str:
+        """
+        Returns a letter grade the student earned for a given course. Defaults to the last course on the student's .courses list. 
+        """
         if course == None:
             course = self.courses[-1]
         return self.grades[course]
     
-    def create_pie_chart(self, course = None, renaming_dictionary = {}, style = None):
+    def create_pie_chart(self, course: Course | None = None, renaming_dictionary: dict = {}, style: str | int | None = None) -> None:
         """A figure of the pie chart will be saved in the Images folder. """
                 
         # Setting the Course Default to the last course the student attended
@@ -600,6 +629,7 @@ class Student:
             style = "seaborn-paper"
         elif isinstance(style, int):
             style = style_list[style%len(style_list)]
+        # If style is a string, it will just be used to set the style to that style name. 
 
         # Making sure there's an images folder
         if not os.path.exists("Images"):
@@ -657,7 +687,7 @@ class Student:
         # plt.close()
 
     
-    def create_other_pie_chart(self, course = None, renaming_dictionary = {}, style = None):
+    def create_other_pie_chart(self, course: Course | None = None, renaming_dictionary: dict = {}, style: str | int | None = None) -> None:
         """A figure of the pie chart will be saved in the Images folder. """
                 
         # Setting the Course Default to the last course the student attended
@@ -726,9 +756,8 @@ class Student:
         # plt.savefig(f"Images/Student Grade Breakdown Pie Charts/{self.first_name} {self.last_name} {course.quarter} {course.name} Grade Breakdown Pie Chart.png", bbox_inches = "tight")
         plt.show()
         # plt.close()
-
-
-    def create_incremented_pie_chart(self, increment, course = None, renaming_dictionary = {}, style = None):
+    
+    def create_incremented_pie_chart(self, increment, course: Course | None = None, renaming_dictionary: dict = {}, style: str | int | None = None) -> None:
         """A figure of the pie chart will be saved in the Images folder. """
                 
         # Setting the Course Default to the last course the student attended
@@ -754,71 +783,125 @@ class Student:
         grade_category_percent_weights = [category.percent_weight for category in course.grade_categories]
         num_categories = len(course.grade_categories)
 
-        plt.style.use('seaborn-pastel')
+        
+        # Zipping in the empty labels and complementary percentages
+        # pie_chart_labels = [label for label in [naming_dictionary[cat.name], ""] for cat in course.grade_categories]
+        # pie_chart_percentages = [percentage for percentage in [self.grade_breakdown[course][category]*.01*category.percent_weight, (100-self.grade_breakdown[course][category]*.01*category.percent_weight)] for category in course.grade_categories]
+        from itertools import chain
+        # Pie Chart Labels: the commented-out line below expresses the category as a percent grade out of the category weight. I think this probably hard for students to read. 
+        # pie_chart_labels = list(chain.from_iterable([[f"{naming_dictionary[category.name]}: {np.rint(self.grade_breakdown[course][category])}% of {category.percent_weight}", ""] for category in course.grade_categories]))
+        pie_chart_labels = list(chain.from_iterable([[f"Your {naming_dictionary[category.name]}", ""] for category in course.grade_categories]))+["" for category in course.grade_categories]
+        pie_chart_percentages = list(chain.from_iterable([[self.grade_breakdown[course][category]*.01*category.percent_weight, ((1-increment)*(100-self.grade_breakdown[course][category])*.01*category.percent_weight)] for category in course.grade_categories]))+[(increment*(100-self.grade_breakdown[course][category])*.01*category.percent_weight) for category in course.grade_categories]
+        display_percentages = list(chain.from_iterable([[f"{self.grade_breakdown[course][category]}% of {category.percent_weight}%", ""] for category in course.grade_categories])) + [""]*num_categories
+
+
+        #plt.pie(grade_item_percentages, labels = grade_items_list, autopct='%0.1f%%')
+        explode = [.05]*num_categories # To slice the perticuler section
+        grade_percentage_colors = ["blue", "darkorange", "forestgreen", "purple",'g', "b"][:len(course.grade_categories)] # Color of each section
+        # The colors list is created by staggering white slices with the grade percentage colors. 
+        colors = list(chain.from_iterable([[grade_percentage_color, darken_color(grade_percentage_color, .7)] for grade_percentage_color in grade_percentage_colors]))+[darken_color(grade_percentage_color, .7) for grade_percentage_color in grade_percentage_colors]
+        textprops = {"fontsize":30} # Font size of text in pie chart
 
         fig, ax = plt.subplots()
-        
-        def function_to_draw_figure(increment):
-            # Zipping in the empty labels and complementary percentages
-            # pie_chart_labels = [label for label in [naming_dictionary[cat.name], ""] for cat in course.grade_categories]
-            # pie_chart_percentages = [percentage for percentage in [self.grade_breakdown[course][category]*.01*category.percent_weight, (100-self.grade_breakdown[course][category]*.01*category.percent_weight)] for category in course.grade_categories]
-            from itertools import chain
-            # Pie Chart Labels: the commented-out line below expresses the category as a percent grade out of the category weight. I think this probably hard for students to read. 
-            # pie_chart_labels = list(chain.from_iterable([[f"{naming_dictionary[category.name]}: {np.rint(self.grade_breakdown[course][category])}% of {category.percent_weight}", ""] for category in course.grade_categories]))
-            pie_chart_labels = list(chain.from_iterable([[f"Your {naming_dictionary[category.name]}", ""] for category in course.grade_categories]))+["" for category in course.grade_categories]
-            pie_chart_percentages = list(chain.from_iterable([[self.grade_breakdown[course][category]*.01*category.percent_weight, ((1-increment)*(100-self.grade_breakdown[course][category])*.01*category.percent_weight)] for category in course.grade_categories]))+[(increment*(100-self.grade_breakdown[course][category])*.01*category.percent_weight) for category in course.grade_categories]
-            display_percentages = list(chain.from_iterable([[f"{self.grade_breakdown[course][category]}% of {category.percent_weight}%", ""] for category in course.grade_categories])) + [""]*num_categories
+        with plt.style.context(style):
+            a,b,m = ax.pie(pie_chart_percentages, 
+                            labels = pie_chart_labels, 
+                            radius = 2, 
+                            explode=None, 
+                            colors=colors, 
+                            autopct='%.0f%%', 
+                            wedgeprops = {"edgecolor" : "white",
+                                        'linewidth': 2,
+                                        'antialiased': True},
+                            textprops=textprops)
+            [m[i].set_color('white') for i in range(len(m)) if i%2 == 0]
+            [m[i].set_color('darkgrey') for i in range(len(m)) if i%2 == 1]
+            [m[i].set_text("") for i in range(len(m))]# if i%2 == 1]
+    
 
 
-            #plt.pie(grade_item_percentages, labels = grade_items_list, autopct='%0.1f%%')
-            explode = [.05]*num_categories # To slice the perticuler section
-            grade_percentage_colors = ["blue", "darkorange", "forestgreen", "purple",'g', "b"][:len(course.grade_categories)] # Color of each section
-            # The colors list is created by staggering white slices with the grade percentage colors. 
-            colors = list(chain.from_iterable([[grade_percentage_color, darken_color(grade_percentage_color, .7)] for grade_percentage_color in grade_percentage_colors]))+[darken_color(grade_percentage_color, .7) for grade_percentage_color in grade_percentage_colors]
-            textprops = {"fontsize":30} # Font size of text in pie chart
-
-            fig, ax = plt.subplots()
-            with plt.style.context(style):
-                a,b,m = ax.pie(pie_chart_percentages, 
-                                labels = pie_chart_labels, 
-                                radius = 2, 
-                                explode=None, 
-                                colors=colors, 
-                                autopct='%.0f%%', 
-                                wedgeprops = {"edgecolor" : "white",
-                                            'linewidth': 2,
-                                            'antialiased': True},
-                                textprops=textprops)
-                [m[i].set_color('white') for i in range(len(m)) if i%2 == 0]
-                [m[i].set_color('darkgrey') for i in range(len(m)) if i%2 == 1]
-                [m[i].set_text("") for i in range(len(m))]# if i%2 == 1]
+# Previously Used Code that attempted to render the animation inside this python module
+    # def create_incremented_pie_chart(self, increment, course = None, renaming_dictionary = {}, style = None):
+    #     """A figure of the pie chart will be saved in the Images folder. """
                 
-            # plt.savefig(f"Images/Student Grade Breakdown Pie Charts/{self.first_name} {self.last_name} {course.quarter} {course.name} Grade Breakdown Pie Chart.png", bbox_inches = "tight")
-            # plt.show(block=False)
-        ani = FuncAnimation(fig, function_to_draw_figure, frames=range(int(1/increment)), repeat=True)
+    #     # Setting the Course Default to the last course the student attended
+    #     if course == None:
+    #         course = self.courses[-1]
+    #     # Setting up the style argument - default to seaborn-paper, and numbers can also be entered
+    #     style_list = ["seaborn-paper", "fivethirtyeight"] + mpl.style.available
+    #     if style == None:
+    #         style = "seaborn-paper"
+    #     elif isinstance(style, int):
+    #         style = style_list[style%len(style_list)]
 
-        return ani
+    #     # Making sure there's an images folder
+    #     # Completing the naming dictionary from the renaming dictionary
+    #     naming_dictionary = {category.name:category.name for category in course.grade_categories} | renaming_dictionary
+        
+    #     sns.set()
+    #     # sns.set_palette("deep")
+        
+    #     # Pie Chart
+    #     # Generating the list of grade item percentages using the grading categories associated with the given course
+    #     grade_category_list = [naming_dictionary[category.name] for category in course.grade_categories]
+    #     grade_category_percent_weights = [category.percent_weight for category in course.grade_categories]
+    #     num_categories = len(course.grade_categories)
+
+    #     plt.style.use('seaborn-pastel')
+
+    #     fig, ax = plt.subplots()
+        
+    #     def function_to_draw_figure(increment):
+    #         # Zipping in the empty labels and complementary percentages
+    #         # pie_chart_labels = [label for label in [naming_dictionary[cat.name], ""] for cat in course.grade_categories]
+    #         # pie_chart_percentages = [percentage for percentage in [self.grade_breakdown[course][category]*.01*category.percent_weight, (100-self.grade_breakdown[course][category]*.01*category.percent_weight)] for category in course.grade_categories]
+    #         from itertools import chain
+    #         # Pie Chart Labels: the commented-out line below expresses the category as a percent grade out of the category weight. I think this probably hard for students to read. 
+    #         # pie_chart_labels = list(chain.from_iterable([[f"{naming_dictionary[category.name]}: {np.rint(self.grade_breakdown[course][category])}% of {category.percent_weight}", ""] for category in course.grade_categories]))
+    #         pie_chart_labels = list(chain.from_iterable([[f"Your {naming_dictionary[category.name]}", ""] for category in course.grade_categories]))+["" for category in course.grade_categories]
+    #         pie_chart_percentages = list(chain.from_iterable([[self.grade_breakdown[course][category]*.01*category.percent_weight, ((1-increment)*(100-self.grade_breakdown[course][category])*.01*category.percent_weight)] for category in course.grade_categories]))+[(increment*(100-self.grade_breakdown[course][category])*.01*category.percent_weight) for category in course.grade_categories]
+    #         display_percentages = list(chain.from_iterable([[f"{self.grade_breakdown[course][category]}% of {category.percent_weight}%", ""] for category in course.grade_categories])) + [""]*num_categories
+
+
+    #         #plt.pie(grade_item_percentages, labels = grade_items_list, autopct='%0.1f%%')
+    #         explode = [.05]*num_categories # To slice the perticuler section
+    #         grade_percentage_colors = ["blue", "darkorange", "forestgreen", "purple",'g', "b"][:len(course.grade_categories)] # Color of each section
+    #         # The colors list is created by staggering white slices with the grade percentage colors. 
+    #         colors = list(chain.from_iterable([[grade_percentage_color, darken_color(grade_percentage_color, .7)] for grade_percentage_color in grade_percentage_colors]))+[darken_color(grade_percentage_color, .7) for grade_percentage_color in grade_percentage_colors]
+    #         textprops = {"fontsize":30} # Font size of text in pie chart
+
+    #         fig, ax = plt.subplots()
+    #         with plt.style.context(style):
+    #             a,b,m = ax.pie(pie_chart_percentages, 
+    #                             labels = pie_chart_labels, 
+    #                             radius = 2, 
+    #                             explode=None, 
+    #                             colors=colors, 
+    #                             autopct='%.0f%%', 
+    #                             wedgeprops = {"edgecolor" : "white",
+    #                                         'linewidth': 2,
+    #                                         'antialiased': True},
+    #                             textprops=textprops)
+    #             [m[i].set_color('white') for i in range(len(m)) if i%2 == 0]
+    #             [m[i].set_color('darkgrey') for i in range(len(m)) if i%2 == 1]
+    #             [m[i].set_text("") for i in range(len(m))]# if i%2 == 1]
+                
+    #         # plt.savefig(f"Images/Student Grade Breakdown Pie Charts/{self.first_name} {self.last_name} {course.quarter} {course.name} Grade Breakdown Pie Chart.png", bbox_inches = "tight")
+    #         # plt.show(block=False)
+    #     ani = FuncAnimation(fig, function_to_draw_figure, frames=range(int(1/increment)), repeat=True)
+
+    #     return ani
 
         
-    
-    
-
-
-
-
-    
-        
-
-
 class CurveSetter:
     def __init__(self, 
-                 value, 
-                 grade_item_or_category, 
-                 course = None, 
-                 method = "Percent of Missing Points", 
-                 spreadsheet = None, 
-                 point_ceiling = False, 
-                 custom_row_function = None
+                 value: float, 
+                 grade_item_or_category: str | GradeCategory, 
+                 method: str = "Percent of Missing Points", 
+                 spreadsheet: Spreadsheet | None = None, 
+                 point_ceiling: bool = False, 
+                 custom_row_function = None, 
+                 course: Course | None = None
                  ):
         self.grade_item_or_category = grade_item_or_category
         # Numerical value used in curving
@@ -854,7 +937,7 @@ class CurveSetter:
         # Adds this object to the list of grade setters for self.course.
         self.course.curve_setter_list.append(self)
 
-    def set_curve(self):
+    def set_curve(self) -> None:
         # Column to be curved    
         if self.spreadsheet == None:
             self.spreadsheet = self.course.master_spreadsheet
@@ -907,7 +990,7 @@ class CurveSetter:
 
 ############################# Functions ##################################
 
-def letter_grade_assigner(row, final_condition = None, great_effort_rule = False, grade_column_name = "Grade", final_grade_column_name = "Final Total"):
+def letter_grade_assigner(row: pd.Series, final_condition: bool = None, great_effort_rule: bool = False, grade_column_name: str = "Grade", final_grade_column_name: str = "Final Total") -> str:
         """
         This letter grade assigner takes a raw grade percentage and outputs a letter grade. There are two peculiarities to this function that are not in a standard letter grade assigner: 
         1) Math 34A/B have a tradition of grading with a "Great Effort Rule" that assigns a B to students who earn a C or better through raw score if they took most of the quizzes, came to lecture and completed at 
@@ -955,7 +1038,7 @@ def letter_grade_assigner(row, final_condition = None, great_effort_rule = False
             return "F"
 
 
-def darken_color(color, amount=1.5):
+def darken_color(color: str, amount: int = 1.5) -> tuple:
     """
     Lightens the given color by multiplying (1-luminosity) by the given amount.
     Input can be matplotlib color string, hex string, or RGB tuple.
