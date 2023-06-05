@@ -114,7 +114,7 @@ class Course:
         #  Integration
         gradescope_spreadsheet_list = [spreadsheet for spreadsheet in self.spreadsheets if spreadsheet.source == "Gradescope"]
         if gradescope_spreadsheet_list != []:
-            gradescope_spreadsheet = gradescope_spreadsheet_list[0]
+            gradescope_spreadsheet = gradescope_spreadsheet_list[-1]
             self.master_spreadsheet.max_points_hash = gradescope_spreadsheet.max_points_hash
             self.master_spreadsheet.df = gradescope_spreadsheet.df
                         
@@ -122,14 +122,14 @@ class Course:
             egrades_spreadsheet_list = [spreadsheet for spreadsheet in self.spreadsheets if spreadsheet.source == "Egrades"]
             if egrades_spreadsheet_list != []:
                 egrades_spreadsheet = egrades_spreadsheet_list[0]
-                egrades_spreadsheet.df = egrades_spreadsheet.df[['Enrl Cd', 'NetID', 'Perm #', "Letter Grade Submitted", 'Email', 'ClassLevel', 'Major1', 'Major2']]
+                egrades_spreadsheet.df = egrades_spreadsheet.df[['Enrl Cd'] + [col_name for col_name in egrades_spreadsheet.df.columns if col_name == "NetID"] + ['Perm #', "Letter Grade Submitted", 'Email', 'ClassLevel', 'Major1', 'Major2']]
                 self.master_spreadsheet.df = pd.merge(self.master_spreadsheet.df, egrades_spreadsheet.df, on=self.id_format, how ="right")
             # Webwork Spreadsheet Integration
             webwork_spreadsheet_list = [spreadsheet for spreadsheet in self.spreadsheets if spreadsheet.source == "Webwork"]
             if webwork_spreadsheet_list != []:
                 webwork_spreadsheet = webwork_spreadsheet_list[0]
                 #### Note that this may not work yet because we haven't found the column name associated with self.id_format (or even set it!) for the webwork spreadsheet class
-                self.master_spreadsheet.df = pd.merge(self.master_spreadsheet.df, webwork_spreadsheet.df, on=self.id_format, how ="left")
+                self.master_spreadsheet.df = pd.merge(self.master_spreadsheet.df, webwork_spreadsheet.df, on=webwork_spreadsheet.id_format, how ="left")
                 self.master_spreadsheet.max_points_hash = self.master_spreadsheet.max_points_hash | webwork_spreadsheet.max_points_hash
         
         # Curving individual columns before any totals are computed
@@ -429,6 +429,8 @@ class Spreadsheet:
         if course == None:
             course = Course.current_course
         self.course = course
+        if id_format == None:
+            id_format = self.course.id_format
         self.file_name = file_name
         self.df = df
         self.id_format = id_format
@@ -436,8 +438,6 @@ class Spreadsheet:
         self.source = None
         # Adding this spreadsheet to the spreadsheet list for its course and inheriting the id_format from the course (if either is possible)
         self.course.spreadsheets += [self]
-        if self.course.id_format != None:
-            self.id_format = self.course.id_format 
     
         if isinstance(self.file_name, str):
             self.df = pd.read_csv(self.file_name)
@@ -498,48 +498,47 @@ class EgradesSpreadsheet(Spreadsheet):
         # ^^Setting the "source" attribute to where the spreadsheet instance's dataframe came from. For this class, they all come from Gradescope. 
 
         self.df.rename(columns = {"Grade": "Letter Grade Submitted"}, inplace = True)
-        self.df["NetID"] = self.df["Email"].apply(lambda entry: entry.split("@")[0])
+        if self.course.id_format == "NetID":
+            self.df["NetID"] = self.df["Email"].apply(lambda entry: entry.split("@")[0])
 
         if isinstance(self.course, Course):
             self.course.egrades_spreadsheet = self       
 
 class WebworkSpreadsheet(Spreadsheet):
-    def __init__(self, file_name: str | None = None, df: pd.DataFrame | None = None, id_format: str | None = None, id_column_name: str | None = None, course: Course = Course.current_course):
+    def __init__(self, file_name: str | None = None, df: pd.DataFrame | None = None, id_format: str | None = None, id_column_name: str | None = None, course: Course = Course.current_course, eleven_percent_extra_credit = False):
         super().__init__(file_name, df, id_format, id_column_name, course)
         self.source = "Webwork"
+        self.eleven_percent_extra_credit = eleven_percent_extra_credit
         # ^^Setting the "source" attribute to where the spreadsheet instance's dataframe came from. For this class, they all come from Gradescope. 
-
         """
-        Still left to do: 
-        1) [done for NetID] Identify the id column (based on its course's id_format) and, in the case of NetID, create a new SID column with the first several letters of their emails addresses
-        2) Figure out format, stripping/cleaning the spaces out of the columns and column names, identifying the homework total column
-        3) If we want to take a look at individual assignments, creating a max_points_hash attribute to track the maximum points for each assignment
+        Still left to do, if you want:
+        1) Figure out format, stripping/cleaning the spaces out of the columns and column names, identifying the homework total column
+        2) If we want to take a look at individual assignments, creating a max_points_hash attribute to track the maximum points for each assignment
         """
         if isinstance(self.course, Course):
             self.course.webwork_spreadsheet = self
 
         self.max_points_hash = {"Homework": 100}
+        # Extra Credit Application
+        if self.eleven_percent_extra_credit:
+            self.max_points_hash = {"Homework": 90}
         # If the line below throws an error, it's because the column names aren't matching
         webwork_total_col_name = [col_name for col_name in self.df.columns if r"%score" in col_name][0]
 
-        # Student ID olumn Name entered as an argument at instantiation
-        if id_column_name != None: 
-            self.df[self.course.id_format] = self.df[id_column_name]
-        # NetID
-        elif self.course.id_format == "NetID": 
-            id_column_name = [col_name for col_name in self.df.columns if "login ID" in col_name][0]
-            self.df[self.course.id_format] = self.df[id_column_name].apply(lambda entry: entry.split("@")[0])
-        # Perm #
-        elif self.course.id_format == "Perm #":
-            id_column_name = [col_name for col_name in self.df.columns if "ID number" in col_name][0]
-            self.df[self.course.id_format] = self.df[id_column_name]
-        # If we're here, then the program doesn't know where to look to identify students. So spreadsheet merging can't happen later. 
-        else:
-            raise Exception("The Webwork class cannot find the student id column because")
+        # Student ID column Name entered as an argument at instantiation
+        if id_column_name == None: 
+            id_column_name = self.id_format
         
-        self.df.rename(columns = {webwork_total_col_name: "Homework"}, inplace = True)
-        self.df = self.df[[self.course.id_format, "Homework"]]
-                    
+        if id_column_name == "login ID":
+            self.df["login ID"] = self.df["login ID"].apply(lambda entry: entry.split("@")[0])
+        
+        
+        self.df.rename(columns = {webwork_total_col_name: "Homework", self.id_column_name: self.id_format}, inplace = True)
+        self.df = self.df[[self.id_format, "Homework"]]
+        self.id_column_name = id_column_name
+        
+        
+
 
         # Adding all of the columns that match each grade category
         for grade_category in self.course.grade_categories:
@@ -663,7 +662,7 @@ class Student:
         # Pie Chart Labels: the commented-out line below expresses the category as a percent grade out of the category weight. I think this probably hard for students to read. 
         # pie_chart_labels = list(chain.from_iterable([[f"{naming_dictionary[category.name]}: {np.rint(self.grade_breakdown[course][category])}% of {category.percent_weight}", ""] for category in course.grade_categories]))
         pie_chart_labels = list(chain.from_iterable([[f"Your {naming_dictionary[category.name]}", ""] for category in course.grade_categories]))
-        pie_chart_percentages = list(chain.from_iterable([[self.grade_breakdown[course][category]*.01*category.percent_weight, ((100-self.grade_breakdown[course][category])*.01*category.percent_weight)] for category in course.grade_categories]))
+        pie_chart_percentages = list(chain.from_iterable([[self.grade_breakdown[course][category]*.01*category.percent_weight, max((100-self.grade_breakdown[course][category])*.01*category.percent_weight, 0)] for category in course.grade_categories]))
         display_percentages = list(chain.from_iterable([[f"{self.grade_breakdown[course][category]}% of {category.percent_weight}%", ""] for category in course.grade_categories]))
 
 
@@ -908,7 +907,7 @@ class CurveSetter:
                  spreadsheet: Spreadsheet | None = None, 
                  point_ceiling: bool = False, 
                  custom_row_function = None, 
-                 course: Course | None = None
+                 course: Course | None = Course.current_course
                  ):
         self.grade_item_or_category = grade_item_or_category
         # Numerical value used in curving
