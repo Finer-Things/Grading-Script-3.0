@@ -10,7 +10,7 @@ import requests
 import os
 import sys
 from typing import Optional
-from pydantic import BaseModel
+# from pydantic import BaseModel
 
 
 
@@ -18,14 +18,15 @@ from pydantic import BaseModel
 class Course:
     all_courses = []
     current_course = None
-    def __init__(self, name: str = None, quarter: str = None, id_format: str = "netID", grade_categories: list=[]):
+
+    def __init__(self, name: str = None, quarter: str = None, id_format: str = "NetID", grade_categories: list=[], spreadsheets: list = []):
         self.name = name
         self.quarter = quarter
         self.grade_categories = grade_categories
-        self.spreadsheets = []
-        self.id_format = id_format #Either "netID" or "Perm #"
-        if self.id_format not in ["netID", "Perm #"]:
-            raise Exception('The attribute id_format must be either "netID" or "Perm #".')
+        self.spreadsheets = spreadsheets
+        self.id_format = id_format #Either "NetID" or "Perm #"
+        if self.id_format not in ["NetID", "Perm #"]:
+            raise Exception('The attribute id_format must be either "NetID" or "Perm #".')
         Course.all_courses.append(self)
         self.master_spreadsheet = None # Spreadsheet class for computing totals that will be created later
         self.roster = []
@@ -110,7 +111,7 @@ class Course:
     def create_master_spreadsheet(self):
         self.master_spreadsheet = MasterSpreadsheet(self)
         ### Step 1: Merging the spreadsheets
-        # Gradescope Spreadsheet Integration
+        #  Integration
         gradescope_spreadsheet_list = [spreadsheet for spreadsheet in self.spreadsheets if spreadsheet.source == "Gradescope"]
         if gradescope_spreadsheet_list != []:
             gradescope_spreadsheet = gradescope_spreadsheet_list[0]
@@ -121,7 +122,7 @@ class Course:
             egrades_spreadsheet_list = [spreadsheet for spreadsheet in self.spreadsheets if spreadsheet.source == "Egrades"]
             if egrades_spreadsheet_list != []:
                 egrades_spreadsheet = egrades_spreadsheet_list[0]
-                egrades_spreadsheet.df = egrades_spreadsheet.df[['Enrl Cd', 'netID', 'Perm #', "Letter Grade Submitted", 'Email', 'ClassLevel', 'Major1', 'Major2']]
+                egrades_spreadsheet.df = egrades_spreadsheet.df[['Enrl Cd', 'NetID', 'Perm #', "Letter Grade Submitted", 'Email', 'ClassLevel', 'Major1', 'Major2']]
                 self.master_spreadsheet.df = pd.merge(self.master_spreadsheet.df, egrades_spreadsheet.df, on=self.id_format, how ="right")
             # Webwork Spreadsheet Integration
             webwork_spreadsheet_list = [spreadsheet for spreadsheet in self.spreadsheets if spreadsheet.source == "Webwork"]
@@ -147,11 +148,11 @@ class Course:
         ### Step 2: Instantiating/updating students from the rows of the new dataframe
         # Definition of the function to be applied below. For each row, the student info will either instantiate a new student or add the student's course info to the course. 
         def get_student_info_from_row(row: pd.Series) -> Student:
-            if row["netID"] in Student.lookup_by_netID:
-                student = Student.lookup_by_netID[row["netID"]]
+            if row["NetID"] in Student.lookup_by_NetID:
+                student = Student.lookup_by_NetID[row["NetID"]]
                 student.courses.append(self)
             else:
-                student = Student(row["netID"], row["First Name"], row["Last Name"], self, row["Perm #"])
+                student = Student(row["NetID"], row["First Name"], row["Last Name"], self, row["Perm #"])
 
             if hasattr(self, "egrades_spreadsheet"):
                 if "math" in str(row.fillna("")["Major1"]).lower():
@@ -262,7 +263,7 @@ class Course:
         time.sleep(5)
         plt.close()
 
-    def print_student_grade_breakdown(self, student_name: str, position: Optional[int], use_last_name: bool = False) -> None:
+    def print_student_grade_breakdown(self, student_name: str, position: int | None = None, use_last_name: bool = False) -> None:
         if use_last_name == True:
             first_or_last_name = "Last Name"
         else:
@@ -271,7 +272,7 @@ class Course:
         print_dataframe = self.master_spreadsheet.df[self.master_spreadsheet.df[first_or_last_name].apply(lambda entry: student_name.lower() in entry.lower())][display_list]
         if position == None:
             for category in display_list:
-                print(f"{repr(category)[:10]:13}|", end="")
+                print(f"{repr(category).split(' Total')[0][:10]:13}|", end="")
             print("")
             for row in print_dataframe.itertuples():
                 for index, category in enumerate(display_list):
@@ -377,8 +378,10 @@ class Course:
 class GradeCategory:
     """Example Instantiation: homework = GradeCategory("Homework", 20, 1, "standard")
     Note that this will actually have an equal assignment weighting, not standard, because the number of assignments to drop is > 0."""
-    def __init__(self, name: str | None = None, percent_weight: float = 0, number_of_dropped_assignments: int = 0, assignment_weighting: str = "standard", course: Course = Course.current_course):
+    def __init__(self, name: str | None = None, percent_weight: float = 0, number_of_dropped_assignments: int = 0, assignment_weighting: str = "standard", course: Course | None = None):
         self.name = name
+        if course == None:
+            course = Course.current_course
         self.course = course
         self.percent_weight = percent_weight
         self.assignment_weighting = assignment_weighting
@@ -422,7 +425,9 @@ class Spreadsheet:
        1) course attribute must be an instance of the Course class
        2) if the associated course has an id format already, it will be set automatically for the spreadsheet as well. 
     """
-    def __init__(self, file_name: str | None = None, df: pd.DataFrame | None = None, id_format: str | None = None, id_column_name: str = "SID", course: Course = Course.current_course):
+    def __init__(self, file_name: str | None = None, df: pd.DataFrame | None = None, id_format: str | None = None, id_column_name: str = "SID", course: Course | None = None):
+        if course == None:
+            course = Course.current_course
         self.course = course
         self.file_name = file_name
         self.df = df
@@ -430,7 +435,7 @@ class Spreadsheet:
         self.id_column_name = id_column_name
         self.source = None
         # Adding this spreadsheet to the spreadsheet list for its course and inheriting the id_format from the course (if either is possible)
-        self.course.spreadsheets.append(self)
+        self.course.spreadsheets += [self]
         if self.course.id_format != None:
             self.id_format = self.course.id_format 
     
@@ -438,13 +443,15 @@ class Spreadsheet:
             self.df = pd.read_csv(self.file_name)
 
 class GradescopeSpreadsheet(Spreadsheet):
-    def __init__(self, file_name: str | None = None, df: pd.DataFrame | None = None, id_format: str | None = None, id_column_name: str = "SID", course: Course = Course.current_course):
-        super().__init__(course, file_name, df, id_format, id_column_name)
+    def __init__(self, file_name: str | None = None, df: pd.DataFrame | None = None, id_format: str | None = None, id_column_name: str = "SID", course: Course | None = None):
+        super().__init__(file_name, df, id_format, id_column_name, course)
+        if course == None:
+            course = Course.current_course
         self.source = "Gradescope"
         # ^^Setting the "source" attribute to where the spreadsheet instance's dataframe came from. For this class, they all come from Gradescope. 
 
-        # More Stuff particular to Gradescope Spreadsheet like the max columns becoming an attribute and then deleting the junk columns
-        # self.id_column_name = "SID" #Because SID is always used to indicate whatever Canvas or Gauchospace is using, whether perm or netID
+        # More Stuff particular to  like the max columns becoming an attribute and then deleting the junk columns
+        # self.id_column_name = "SID" #Because SID is always used to indicate whatever Canvas or Gauchospace is using, whether perm or NetID
         if not isinstance(self.df, pd.DataFrame):
             print(f"{self} instantiated with no dataframe.")
             return None
@@ -454,13 +461,13 @@ class GradescopeSpreadsheet(Spreadsheet):
         
         self.set_max_points_info()
         
-        # Adding a netID column in the case where Perm # is the id_format of the course. 
+        # Adding a NetID column in the case where Perm # is the id_format of the course. 
         if self.course.id_format == "Perm #":
-            self.df["netID"] = self.df["Email"].apply(lambda email: email.split("@")[0])
+            self.df["NetID"] = self.df["Email"].apply(lambda email: email.split("@")[0])
         
         self.drop_junk_columns()
         
-        # Renaming the SID ("Student ID") column to course.id_format name. That way it's "netID" for Canvas and "Perm #" for Gauchospace
+        # Renaming the SID ("Student ID") column to course.id_format name. That way it's "NetID" for Canvas and "Perm #" for Gauchospace
         self.df.rename(columns = {"SID": self.course.id_format}, inplace = True)
 
         # Adding all of the columns that match each grade category
@@ -486,25 +493,25 @@ class GradescopeSpreadsheet(Spreadsheet):
 
 class EgradesSpreadsheet(Spreadsheet):
     def __init__(self, file_name: str | None = None, df: pd.DataFrame | None = None, id_format: str | None = None, id_column_name: str | None = None, course: Course = Course.current_course):
-        super().__init__(course, file_name, df, id_format, id_column_name)
+        super().__init__(file_name, df, id_format, id_column_name, course)
         self.source = "Egrades"
         # ^^Setting the "source" attribute to where the spreadsheet instance's dataframe came from. For this class, they all come from Gradescope. 
 
         self.df.rename(columns = {"Grade": "Letter Grade Submitted"}, inplace = True)
-        self.df["netID"] = self.df["Email"].apply(lambda entry: entry.split("@")[0])
+        self.df["NetID"] = self.df["Email"].apply(lambda entry: entry.split("@")[0])
 
         if isinstance(self.course, Course):
             self.course.egrades_spreadsheet = self       
 
 class WebworkSpreadsheet(Spreadsheet):
     def __init__(self, file_name: str | None = None, df: pd.DataFrame | None = None, id_format: str | None = None, id_column_name: str | None = None, course: Course = Course.current_course):
-        super().__init__(course, file_name, df, id_format, id_column_name)
+        super().__init__(file_name, df, id_format, id_column_name, course)
         self.source = "Webwork"
         # ^^Setting the "source" attribute to where the spreadsheet instance's dataframe came from. For this class, they all come from Gradescope. 
 
         """
         Still left to do: 
-        1) [done for netID] Identify the id column (based on its course's id_format) and, in the case of netID, create a new SID column with the first several letters of their emails addresses
+        1) [done for NetID] Identify the id column (based on its course's id_format) and, in the case of NetID, create a new SID column with the first several letters of their emails addresses
         2) Figure out format, stripping/cleaning the spaces out of the columns and column names, identifying the homework total column
         3) If we want to take a look at individual assignments, creating a max_points_hash attribute to track the maximum points for each assignment
         """
@@ -518,8 +525,8 @@ class WebworkSpreadsheet(Spreadsheet):
         # Student ID olumn Name entered as an argument at instantiation
         if id_column_name != None: 
             self.df[self.course.id_format] = self.df[id_column_name]
-        # netID
-        elif self.course.id_format == "netID": 
+        # NetID
+        elif self.course.id_format == "NetID": 
             id_column_name = [col_name for col_name in self.df.columns if "login ID" in col_name][0]
             self.df[self.course.id_format] = self.df[id_column_name].apply(lambda entry: entry.split("@")[0])
         # Perm #
@@ -540,7 +547,7 @@ class WebworkSpreadsheet(Spreadsheet):
 
 class MasterSpreadsheet(Spreadsheet):
     def __init__(self, file_name: str | None = None, df: pd.DataFrame | None = None, id_format: str | None = None, id_column_name: str = "SID", course: Course = Course.current_course):
-        super().__init__(course, file_name, df, id_format, id_column_name)
+        super().__init__(file_name, df, id_format, id_column_name, course)
         self.source = "Master"
 
         if isinstance(self.course, Course):
@@ -558,13 +565,13 @@ class GradeCalculator:
 
 
 class Student:
-    # Hash Table of all students based on netID
-    lookup_by_netID = {}
+    # Hash Table of all students based on NetID
+    lookup_by_NetID = {}
     # Hash Table of all students based on perm_number
     lookup_by_perm = {}
     # The default for the course argument is None in this case because students are not meant to be instantiated outside of these classes. They are meant to be instantiated by the .create_master_spreadsheet() Course method.
-    def __init__(self, netID: str, first_name: str | None = None, last_name: str | None = None, course: str | None = None, perm_number: str | None = None):
-        self.netID = netID
+    def __init__(self, NetID: str, first_name: str | None = None, last_name: str | None = None, course: str | None = None, perm_number: str | None = None):
+        self.NetID = NetID
         self.first_name = first_name
         self.last_name = last_name
         self.perm_number = perm_number
@@ -572,14 +579,14 @@ class Student:
         If the student is instantiated with a course, then 
             1) That course is added to the student's course history (self.courses: list).
             2) The student is added to that courses's roster of students. 
-            3) The student is added to the Student.lookup_by_netID dictionary.
+            3) The student is added to the Student.lookup_by_NetID dictionary.
             4) The student is added to the Student.lookup_by_perm dictionary.
         """
         self.grades = {} # A dictionary with keys that are Course objects and values that are strings (for letter grades)
         if isinstance(course, Course):
             self.courses = [course]
             self.courses[0].roster.append(self)
-        Student.lookup_by_netID[self.netID] = self
+        Student.lookup_by_NetID[self.NetID] = self
         Student.lookup_by_perm[self.perm_number] = self
  
         """
@@ -607,7 +614,7 @@ class Student:
         """
         Output Format Example: "John Doe jdoe805"
         """
-        return f"{self.first_name} {self.last_name} {self.netID}"
+        return f"{self.first_name} {self.last_name} {self.NetID}"
     
     def show_grade(self, course: Course | None = None) -> str:
         """
