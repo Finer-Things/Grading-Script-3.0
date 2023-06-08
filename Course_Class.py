@@ -61,7 +61,7 @@ class Course:
         """
         return f"{self.quarter} {self.name}"
     
-    def create_grade_columns(self, great_effort_rule: bool = True, final_condition: bool = False) -> None:
+    def create_grade_columns(self, great_effort_rule: bool = False, final_condition: bool = False) -> None:
         """Used in the create_master_spreadsheet method to calculate the grade percentage as well as the letter grade.
         This method uses the letter_grade_assigner grading function."""
         # Great Effort Rule Check
@@ -245,22 +245,23 @@ class Course:
         #plt.pie(grade_item_percentages, labels = grade_items_list, autopct='%0.1f%%')
         explode = [.05,.05,.05,.05, .05] # To slice the perticuler section
         colors = ["blue", "darkorange", "forestgreen", "purple",'g', "b"][:len(self.grade_categories)] # Color of each section
-        textprops = {"fontsize":30} # Font size of text in pie chart
+        textprops = {"fontsize":30, "color":"w"} # Font size of text in pie chart
 
-        fig1, ax1 = plt.subplots()
+        fig1, ax = plt.subplots()
         with plt.style.context(style):
-            a,b,m = ax1.pie(grade_item_percentages, 
+            wedges,labels,percent_text = ax.pie(grade_item_percentages, 
                             labels = grade_items_list, 
                             radius = 2, 
                             explode=None, 
                             colors=colors, 
                             autopct='%.0f%%', 
                             textprops=textprops)
-            [m[i].set_color('white') for i in range(len(m))]
+            # [m[i].set_color('white') for i in range(len(m))]
+            for label, color in zip(labels, colors):
+                label.set_color(color)
 
         plt.savefig(f"Images/{self.quarter} {self.name} Grade Category Pie Chart.png", bbox_inches = "tight")
         plt.show(block=False)
-        time.sleep(5)
         plt.close()
 
     def print_student_grade_breakdown(self, student_name: str, position: int | None = None, use_last_name: bool = False) -> None:
@@ -673,9 +674,9 @@ class Student:
         colors = list(chain.from_iterable([[grade_percentage_color, darken_color(grade_percentage_color, .7)] for grade_percentage_color in grade_percentage_colors]))
         textprops = {"fontsize":30} # Font size of text in pie chart
 
-        fig1, ax1 = plt.subplots()
+        fig1, ax = plt.subplots()
         with plt.style.context(style):
-            a,b,m = ax1.pie(pie_chart_percentages, 
+            a,b,m = ax.pie(pie_chart_percentages, 
                             labels = pie_chart_labels, 
                             radius = 2, 
                             explode=None, 
@@ -685,6 +686,7 @@ class Student:
                                           'linewidth': 2,
                                           'antialiased': True},
                             textprops=textprops)
+            ax.set_title(f"{self.first_name} {self.last_name} Grade Breakdown", y=1, pad=90)
             [m[i].set_color('white') for i in range(len(m)) if i%2 == 0]
             [m[i].set_color('darkgrey') for i in range(len(m)) if i%2 == 1]
             [m[i].set_text("") for i in range(len(m))]# if i%2 == 1]
@@ -742,10 +744,10 @@ class Student:
         colors = [grade_percentage_color for grade_percentage_color in grade_percentage_colors] + [darken_color(grade_percentage_color, .7) for grade_percentage_color in grade_percentage_colors]
         textprops = {"fontsize":30} # Font size of text in pie chart
 
-        fig1, ax1 = plt.subplots()
+        fig1, ax = plt.subplots()
         with plt.style.context(style):
             for k in range(3):
-                a,b,m = ax1.pie(pie_chart_percentages, 
+                a,b,m = ax.pie(pie_chart_percentages, 
                                 labels = pie_chart_labels, 
                                 radius = 2, 
                                 explode=None, 
