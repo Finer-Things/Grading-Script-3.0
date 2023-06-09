@@ -247,7 +247,7 @@ class Course:
         colors = ["blue", "darkorange", "forestgreen", "purple",'g', "b"][:len(self.grade_categories)] # Color of each section
         textprops = {"fontsize":30, "color":"w"} # Font size of text in pie chart
 
-        fig1, ax = plt.subplots()
+        fig, ax = plt.subplots()
         with plt.style.context(style):
             wedges,labels,percent_text = ax.pie(grade_item_percentages, 
                             labels = grade_items_list, 
@@ -289,7 +289,7 @@ class Course:
             print("")
     
 
-    def plot_grade_item(self, 
+    def plot(self, 
                     grade_item: str, 
                     style: int | str = "seaborn-paper",
                     # int for index (with "wordwrap") in style_list, str for style name
@@ -624,7 +624,70 @@ class Student:
             course = self.courses[-1]
         return self.grades[course]
     
-    def create_pie_chart(self, course: Course | None = None, renaming_dictionary: dict = {}, style: str | int | None = None) -> None:
+    def show_grade_breakdown(self, course: Course | None = None) -> None:
+        """
+        This will hopefully replace the corresponding Course Class method (same name, I think) that has a search for students
+        """
+        if course == None:
+            course = Course.current_course
+        for category in self.grade_breakdown[course].keys():
+            display_grade = repr(category).__str__().split()[0]
+            print(f"{display_grade[:10]:13}|", end="")
+        print(f"{'Grade'[:10]:13}|", end="")
+        print(f"{'Letter Grade'[:12]:13}|", end="")
+        print("")
+        for grade in self.grade_breakdown[course].values():
+            print(f"{grade.__str__()[:10]:13}|", end="")
+        for info in self.grades[course]:
+            print(f"{info.__str__()[:10]:13}|", end="")
+    
+    
+    def show_final_grade_needed(self, grade_desired: int, course: Course | None = None) -> None:
+        """
+        This is meant to be a quick answer to the "What grade do I need on the final to get a ...?" question. 
+        But it generalizes the idea: In the case where only the final category has nothing submitted yet, it
+        will tell you the grade you need. But if there are other missing categories then it will tell you the 
+        average grade you need over those categories combined. 
+        """
+        
+        if course == None:
+            course = Course.current_course
+
+        empty_cats = [cat for cat in course.grade_categories if len(cat.grade_items) == 0]
+        incomplete_weight = sum([cat.percent_weight for cat in empty_cats])
+        non_empty_cats = [cat for cat in course.grade_categories if len(cat.grade_items) > 0]
+        complete_weight = sum([cat.percent_weight for cat in non_empty_cats])
+        grade_so_far = self.grades[course][0]
+        grade_needed = np.round((100*grade_desired - grade_so_far * complete_weight)/incomplete_weight, decimals = 2)
+
+        if len(empty_cats) == 1 and "final" in empty_cats[0].__repr__().lower():
+            print("True")
+
+        print(
+            f"""
+                ax grade now: {grade_so_far}
+                {incomplete_weight}% of the course has not been determined yet, based on these categories:
+                {empty_cats}
+                The grade you need on the final to get a {grade_desired}% in the course (or average)
+                {grade_needed}
+            """
+            )
+
+        # print(f"{complete_weight}% of the course has been completed by category, or at least those categories have grade items in them.")
+        # print(f"ax grade for that percent of the course is {grade_so_far}.")
+        # print(f"This leaves {incomplete_weight}% of the course to go, specifically these categories:")
+        # print(*non_empty_cats, ".")
+        # print("Assuming your grades do not change for any of the categories mentioned above, ")
+        # print(f"if you average {grade_needed}% on the remaining categories then you will get a {grade_desired}% in the class.")
+
+        # print(f"Grade So Far: {grade_so_far}")
+        # print(f"Incomplete Weight: {incomplete_weight}")
+        # print(f"Complete Weight: {complete_weight}")
+
+        # print(grade_needed)
+
+    
+    def create_pie_chart(self, course: Course | None = None, renaming_dictionary: dict = {}, style: str | int = "seaborn-paper") -> None:
         """A figure of the pie chart will be saved in the Images folder. """
                 
         # Setting the Course Default to the last course the student attended
@@ -662,7 +725,7 @@ class Student:
         from itertools import chain
         # Pie Chart Labels: the commented-out line below expresses the category as a percent grade out of the category weight. I think this probably hard for students to read. 
         # pie_chart_labels = list(chain.from_iterable([[f"{naming_dictionary[category.name]}: {np.rint(self.grade_breakdown[course][category])}% of {category.percent_weight}", ""] for category in course.grade_categories]))
-        pie_chart_labels = list(chain.from_iterable([[f"Your {naming_dictionary[category.name]}", ""] for category in course.grade_categories]))
+        pie_chart_labels = list(chain.from_iterable([[f"{naming_dictionary[category.name]} Score", ""] for category in course.grade_categories]))
         pie_chart_percentages = list(chain.from_iterable([[self.grade_breakdown[course][category]*.01*category.percent_weight, max((100-self.grade_breakdown[course][category])*.01*category.percent_weight, 0)] for category in course.grade_categories]))
         display_percentages = list(chain.from_iterable([[f"{self.grade_breakdown[course][category]}% of {category.percent_weight}%", ""] for category in course.grade_categories]))
 
@@ -672,11 +735,11 @@ class Student:
         grade_percentage_colors = ["blue", "darkorange", "forestgreen", "purple",'g', "b"][:len(course.grade_categories)] # Color of each section
         # The colors list is created by staggering white slices with the grade percentage colors. 
         colors = list(chain.from_iterable([[grade_percentage_color, darken_color(grade_percentage_color, .7)] for grade_percentage_color in grade_percentage_colors]))
-        textprops = {"fontsize":30} # Font size of text in pie chart
+        textprops = {"fontsize":20, "color":"w"} # Font size and color of text in pie chart
 
         fig1, ax = plt.subplots()
         with plt.style.context(style):
-            a,b,m = ax.pie(pie_chart_percentages, 
+            wedges,labels,percent_text = ax.pie(pie_chart_percentages, 
                             labels = pie_chart_labels, 
                             radius = 2, 
                             explode=None, 
@@ -687,9 +750,18 @@ class Student:
                                           'antialiased': True},
                             textprops=textprops)
             ax.set_title(f"{self.first_name} {self.last_name} Grade Breakdown", y=1, pad=90)
-            [m[i].set_color('white') for i in range(len(m)) if i%2 == 0]
-            [m[i].set_color('darkgrey') for i in range(len(m)) if i%2 == 1]
-            [m[i].set_text("") for i in range(len(m))]# if i%2 == 1]
+            for label, color in zip(labels, colors):
+                label.set_color(color)
+            
+            for i, pct in enumerate(percent_text):
+                if i%2 == 0:
+                    pct.set_color("white")
+                elif i%2 == 1:
+                    pct.set_color("darkgrey")
+                # pct.set_text("")
+            # [percent_text[i].set_color('white') for i in range(len(m)) if i%2 == 0]
+            # [percent_text[i].set_color('darkgrey') for i in range(len(m)) if i%2 == 1]
+            # [percent_text[i].set_text("") for i in range(len(m))]# if i%2 == 1]
             
         plt.savefig(f"Images/Student Grade Breakdown Pie Charts/{self.first_name} {self.last_name} {course.quarter} {course.name} Grade Breakdown Pie Chart.png", bbox_inches = "tight")
         # plt.close()
@@ -798,7 +870,7 @@ class Student:
         from itertools import chain
         # Pie Chart Labels: the commented-out line below expresses the category as a percent grade out of the category weight. I think this probably hard for students to read. 
         # pie_chart_labels = list(chain.from_iterable([[f"{naming_dictionary[category.name]}: {np.rint(self.grade_breakdown[course][category])}% of {category.percent_weight}", ""] for category in course.grade_categories]))
-        pie_chart_labels = list(chain.from_iterable([[f"Your {naming_dictionary[category.name]}", ""] for category in course.grade_categories]))+["" for category in course.grade_categories]
+        pie_chart_labels = list(chain.from_iterable([[f"ax {naming_dictionary[category.name]}", ""] for category in course.grade_categories]))+["" for category in course.grade_categories]
         pie_chart_percentages = list(chain.from_iterable([[self.grade_breakdown[course][category]*.01*category.percent_weight, ((1-increment)*(100-self.grade_breakdown[course][category])*.01*category.percent_weight)] for category in course.grade_categories]))+[(increment*(100-self.grade_breakdown[course][category])*.01*category.percent_weight) for category in course.grade_categories]
         display_percentages = list(chain.from_iterable([[f"{self.grade_breakdown[course][category]}% of {category.percent_weight}%", ""] for category in course.grade_categories])) + [""]*num_categories
 
@@ -866,7 +938,7 @@ class Student:
     #         from itertools import chain
     #         # Pie Chart Labels: the commented-out line below expresses the category as a percent grade out of the category weight. I think this probably hard for students to read. 
     #         # pie_chart_labels = list(chain.from_iterable([[f"{naming_dictionary[category.name]}: {np.rint(self.grade_breakdown[course][category])}% of {category.percent_weight}", ""] for category in course.grade_categories]))
-    #         pie_chart_labels = list(chain.from_iterable([[f"Your {naming_dictionary[category.name]}", ""] for category in course.grade_categories]))+["" for category in course.grade_categories]
+    #         pie_chart_labels = list(chain.from_iterable([[f"ax {naming_dictionary[category.name]}", ""] for category in course.grade_categories]))+["" for category in course.grade_categories]
     #         pie_chart_percentages = list(chain.from_iterable([[self.grade_breakdown[course][category]*.01*category.percent_weight, ((1-increment)*(100-self.grade_breakdown[course][category])*.01*category.percent_weight)] for category in course.grade_categories]))+[(increment*(100-self.grade_breakdown[course][category])*.01*category.percent_weight) for category in course.grade_categories]
     #         display_percentages = list(chain.from_iterable([[f"{self.grade_breakdown[course][category]}% of {category.percent_weight}%", ""] for category in course.grade_categories])) + [""]*num_categories
 
