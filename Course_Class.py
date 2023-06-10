@@ -289,6 +289,41 @@ class Course:
             print("")
     
 
+    def find_student(self, *id_strings):
+        """
+        id_strings are any string used to look for the student. It can be a first name, last name, NetID, or a substring of any of those. 
+        This method will search the students combined first name, last name, NetID and Perm# (if recorded) for a match. 
+        Note that the NetIDs for Gauchospace courses are improvised from their email addresses on record and may not be their official NetID. 
+
+        The goal is to find a unique match for the stings entered. If a first name is given and it is unique for the course, 
+        then this method will return a student. 
+        Similarly, if multiple arguments are entered and a unique student is identified then this will just return the student. 
+        This leaves two basic failure cases: 
+            1) One in which there are too many students. In this case, each student found will be printed out in an exception.
+            2) In the second case, there are no students found. This has two subcases. One subcase is where there just weren't any matches 
+                from the beginning. We'll raise an exception in that case indicating this. 
+                Another subcase is where a uniqe match was found for a previous argument and a new argument eliminated all matches. 
+                In this subcase we'll raise an exception and print out all of the previous matches. 
+        """
+        # Initializing the search at the entire roster
+        search_result = self.roster
+        # Keeping a dictionary of the matches for each successive id_string argument. 
+        match_dictionary = {}
+        for id_string in id_strings:
+            search_result = [student for student in search_result if id_string.lower() in student.__repr__().lower()]
+            if search_result == []:
+                for id_string, search_result in match_dictionary:
+                    print(id_string, search_result)
+                raise Exception(f"No search results when looking for {id_string}.")
+            match_dictionary[id_string] = search_result
+        if len(search_result) > 1:
+            print(search_result)
+            raise Exception(f"There are more than one student who match your search criteria.")
+        else: 
+            student = search_result[0]
+            return student
+            
+
     def plot(self, 
                     grade_item: str, 
                     style: int | str = "seaborn-paper",
