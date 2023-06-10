@@ -665,7 +665,7 @@ class Student:
 
         print(
             f"""
-                ax grade now: {grade_so_far}
+                Your grade now: {grade_so_far}
                 {incomplete_weight}% of the course has not been determined yet, based on these categories:
                 {empty_cats}
                 The grade you need on the final to get a {grade_desired}% in the course (or average)
