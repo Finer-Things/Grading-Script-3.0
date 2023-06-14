@@ -87,6 +87,8 @@ class Course:
             
         # Compute a grade percentage by applying the grade_calculator function above
         df["Grade"] = df.apply(grade_calculator , axis=1)
+        # Adding 100 as "Max Points" to make graphing functions work elsewhere
+        self.master_spreadsheet.max_points_hash["Grade"] = 100
         
         """Checking the course for great effort rule and final_condition attributes before using them to compute letter grades. 
         They can also be fed into the create_grade_columns method directly."""
@@ -121,13 +123,13 @@ class Course:
             # Egrades Spreadsheet Integration
             egrades_spreadsheet_list = [spreadsheet for spreadsheet in self.spreadsheets if spreadsheet.source == "Egrades"]
             if egrades_spreadsheet_list != []:
-                egrades_spreadsheet = egrades_spreadsheet_list[0]
+                egrades_spreadsheet = egrades_spreadsheet_list[-1]
                 egrades_spreadsheet.df = egrades_spreadsheet.df[['Enrl Cd'] + [col_name for col_name in egrades_spreadsheet.df.columns if col_name == "NetID"] + ['Perm #', "Letter Grade Submitted", 'Email', 'ClassLevel', 'Major1', 'Major2']]
                 self.master_spreadsheet.df = pd.merge(self.master_spreadsheet.df, egrades_spreadsheet.df, on=self.id_format, how ="right")
             # Webwork Spreadsheet Integration
             webwork_spreadsheet_list = [spreadsheet for spreadsheet in self.spreadsheets if spreadsheet.source == "Webwork"]
             if webwork_spreadsheet_list != []:
-                webwork_spreadsheet = webwork_spreadsheet_list[0]
+                webwork_spreadsheet = webwork_spreadsheet_list[-1]
                 #### Note that this may not work yet because we haven't found the column name associated with self.id_format (or even set it!) for the webwork spreadsheet class
                 self.master_spreadsheet.df = pd.merge(self.master_spreadsheet.df, webwork_spreadsheet.df, on=webwork_spreadsheet.id_format, how ="left")
                 self.master_spreadsheet.max_points_hash = self.master_spreadsheet.max_points_hash | webwork_spreadsheet.max_points_hash
@@ -554,10 +556,12 @@ class WebworkSpreadsheet(Spreadsheet):
         if isinstance(self.course, Course):
             self.course.webwork_spreadsheet = self
 
-        self.max_points_hash = {"Homework": 100}
-        # Extra Credit Application
+        # Setting max points hash based on extra credit
         if self.eleven_percent_extra_credit:
             self.max_points_hash = {"Homework": 90}
+        else: 
+            self.max_points_hash = {"Homework": 100}
+
         # If the line below throws an error, it's because the column names aren't matching
         webwork_total_col_name = [col_name for col_name in self.df.columns if r"%score" in col_name][0]
 
@@ -565,7 +569,7 @@ class WebworkSpreadsheet(Spreadsheet):
         if id_column_name == None: 
             id_column_name = self.id_format
         
-        if id_column_name == "login ID":
+        if self.id_format == "NetID" and id_column_name == "login ID":
             self.df["login ID"] = self.df["login ID"].apply(lambda entry: entry.split("@")[0])
         
         
