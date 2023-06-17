@@ -75,15 +75,25 @@ class Course:
         df = self.master_spreadsheet.df
         def grade_calculator(row: pd.Series) -> float:
             # Applying Homework Extra Credit to Midterm Average. This assumes midterms are 40% and homework is 20%
-            if row["Homework Total"] > 100:
-                # Take away homework extra credit
-                extra = row["Homework Total"] - 100
-                row["Homework Total"] = 100
-                
-                # Apply it to Midterm Total, up to 97%
-                if row["Midterm Total"] < 97:
-                    row["Midterm Total"] = min(row["Midterm Total"] + .5*extra, 97)
+            if "Homework Total" in list(row):
+                if row["Homework Total"] > 100:
+                    # Take away homework extra credit
+                    extra = row["Homework Total"] - 100
+                    row["Homework Total"] = 100
+                    
+                    # Apply it to Midterm Total, up to 97%
+                    if row["Midterm Total"] < 97:
+                        row["Midterm Total"] = min(row["Midterm Total"] + .5*extra, 97)
 
+            # Inflating grade total for students who have medically excused abscences
+            for category in self.grade_categories:
+                if hasattr(category, "medical_miss_dict"):
+                    if "Perm #" in row:
+                        dict = category.medical_miss_dict
+                        perm = row["Perm #"]
+                        if perm in dict.keys():
+                            num_grade_items = len(category.spreadsheet_to_grade_items_hash.keys())
+                            row[category.name + " Total"] *= (num_grade_items + dict[perm])/num_grade_items
 
 
             weighted_average_numerator = sum([row[category.name + " Total"]*category.percent_weight for category in self.grade_categories])
@@ -193,7 +203,8 @@ class Course:
                     self.master_spreadsheet.df[grade_cat_col_name] *= 100/self.master_spreadsheet.max_points_hash[grade_cat_col_name]
                     self.master_spreadsheet.max_points_hash[grade_cat_col_name] = 100
 
-            # Computing the Category Total
+            ######## Computing the Category Total #########
+            # Getting the Grade Items for grade_category
             grade_items = grade_category.spreadsheet_to_grade_items_hash[self.master_spreadsheet.source]
             
             # Quick Adjustment to make sure there aren't as many dropped assignments (or more) than there are actual assignments in a grade category. 
@@ -278,6 +289,14 @@ class Course:
         plt.show(block=False)
         plt.close()
 
+    def create_egrades_file(self):
+        """
+        Creates a csv file formatted for egrades submission if there is a master spreadsheet for the course
+        """
+        if not hasattr(self, "master_spreadsheet"):
+            raise Exception("You need to create a master spreadsheet first, which will compute grades. Then you can save them to a CSV file.")
+        df = self.master_spreadsheet.df
+        df.to_csv("data/egrades_spreadsheet_for_grade_submission.csv", columns = ["Enrl Cd", "Perm #", "Letter Grade"], index = False)
 
     def plot_letter_grades(self):
         df = self.master_spreadsheet.df
@@ -410,7 +429,7 @@ class Course:
             if auto_max_score == True:
                 max_score = self.master_spreadsheet.max_points_hash[grade_item]
 
-            sns.histplot(col, 
+            y = sns.histplot(col, 
                         kde=True, 
                         bins=[max_score/10*n for n in range(11)], 
                         stat=stat, 
@@ -423,6 +442,7 @@ class Course:
                             bins=[max_score, stat_list[-1]], 
                             color=over_achiever_color
                             )
+            
             
             #Dashed lines for means%
             plt.axvline(df[grade_item].mean(), linestyle = "dashdot", linewidth = mean_line_width, color = mean_line_color, alpha = mean_line_alpha)
