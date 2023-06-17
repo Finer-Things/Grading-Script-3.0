@@ -74,6 +74,18 @@ class Course:
         
         df = self.master_spreadsheet.df
         def grade_calculator(row: pd.Series) -> float:
+            # Applying Homework Extra Credit to Midterm Average. This assumes midterms are 40% and homework is 20%
+            if row["Homework Total"] > 100:
+                # Take away homework extra credit
+                extra = row["Homework Total"] - 100
+                row["Homework Total"] = 100
+                
+                # Apply it to Midterm Total, up to 97%
+                if row["Midterm Total"] < 97:
+                    row["Midterm Total"] = min(row["Midterm Total"] + .5*extra, 97)
+
+
+
             weighted_average_numerator = sum([row[category.name + " Total"]*category.percent_weight for category in self.grade_categories])
             weighted_average_denominator = sum([category.percent_weight for category in self.grade_categories if category.spreadsheet_to_grade_items_hash[self.master_spreadsheet.source] != [] ])
             """In the weighted average denominator above, note the condition at the end of the list grade items for each category needs to be non-empty in order for that category's
@@ -265,6 +277,31 @@ class Course:
         plt.savefig(f"Images/{self.quarter} {self.name} Grade Category Pie Chart.png", bbox_inches = "tight")
         plt.show(block=False)
         plt.close()
+
+
+    def plot_letter_grades(self):
+        df = self.master_spreadsheet.df
+        
+        # Making a dictionary with all grade values set to 0 as a default to avoid key errors if there are no students with a given grade. 
+        from itertools import product
+        letters = ["F", "D", "C", "B", "A"]
+        letter_grades = ["F", "D-", "D", "D+", "C-", "C", "C+", "B-", "B", "B+", "A-", "A", "A+"]
+        grade_values_dictionary = {letter_grade: 0 for letter_grade in letter_grades} | df[df["Final Total"] != 0]["Letter Grade"].value_counts().to_dict()
+
+        fig, ax = plt.subplots()
+
+        minuses = np.array([0] + [grade_values_dictionary[letter + "-"] for letter in letters[1:]])
+        regulars = np.array([grade_values_dictionary[letter] for letter in letters])
+        pluses = np.array([0] + [grade_values_dictionary[letter + "+"] for letter in letters[1:]])
+
+        ax.bar(letters, pluses + regulars + minuses, color = "gold")
+        ax.bar(letters, regulars + minuses, color = "blue")
+        ax.bar(letters, minuses, color = "darkred")
+
+        ax.legend(["+", " ", "-"])
+
+        plt.show()
+
 
     def print_student_grade_breakdown(self, student_name: str, position: int | None = None, use_last_name: bool = False) -> None:
         if use_last_name == True:
@@ -692,8 +729,14 @@ class Student:
         if course == None:
             course = Course.current_course
 
+        
         empty_cats = [cat for cat in course.grade_categories if len(cat.grade_items) == 0]
         incomplete_weight = sum([cat.percent_weight for cat in empty_cats])
+        # Escape for no empty categories
+        if empty_cats == []:
+            print("All grade categories have assignments in them.")
+            return None
+        
         non_empty_cats = [cat for cat in course.grade_categories if len(cat.grade_items) > 0]
         complete_weight = sum([cat.percent_weight for cat in non_empty_cats])
         grade_so_far = self.grades[course][0]
