@@ -451,11 +451,11 @@ class GradeCategory:
     def plot(self, items: list | str = "all") -> None:
         if items == "all":
             for item in self.grade_items:
-                self.course.plot_grade_item(item)
+                self.course.plot(item)
         elif isinstance(items, list):
             for item in items:
-                self.course.plot_grade_item(item)
-        self.course.plot_grade_item(f"{self.name} Total")
+                self.course.plot(item)
+        self.course.plot(f"{self.name} Total")
 
 class Spreadsheet:
     """
