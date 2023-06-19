@@ -74,28 +74,9 @@ class Course:
         
         df = self.master_spreadsheet.df
         def grade_calculator(row: pd.Series) -> float:
-            # Applying Homework Extra Credit to Midterm Average. This assumes midterms are 40% and homework is 20%
-            if "Homework Total" in list(row):
-                if row["Homework Total"] > 100:
-                    # Take away homework extra credit
-                    extra = row["Homework Total"] - 100
-                    row["Homework Total"] = 100
-                    
-                    # Apply it to Midterm Total, up to 97%
-                    if row["Midterm Total"] < 97:
-                        row["Midterm Total"] = min(row["Midterm Total"] + .5*extra, 97)
-
-            # Inflating grade total for students who have medically excused abscences
-            for category in self.grade_categories:
-                if hasattr(category, "medical_miss_dict"):
-                    if "Perm #" in row:
-                        dict = category.medical_miss_dict
-                        perm = row["Perm #"]
-                        if perm in dict.keys():
-                            num_grade_items = len(category.spreadsheet_to_grade_items_hash.keys())
-                            row[category.name + " Total"] *= (num_grade_items + dict[perm])/num_grade_items
-
-
+            """
+            Computes a grad percentage based on the grade category totals
+            """
             weighted_average_numerator = sum([row[category.name + " Total"]*category.percent_weight for category in self.grade_categories])
             weighted_average_denominator = sum([category.percent_weight for category in self.grade_categories if category.spreadsheet_to_grade_items_hash[self.master_spreadsheet.source] != [] ])
             """In the weighted average denominator above, note the condition at the end of the list grade items for each category needs to be non-empty in order for that category's
@@ -108,7 +89,7 @@ class Course:
             return np.round(weighted_average_numerator/weighted_average_denominator, decimals=2)
             
         # Compute a grade percentage by applying the grade_calculator function above
-        df["Grade"] = df.apply(grade_calculator , axis=1)
+        df["Grade"] = df.apply(grade_calculator, axis=1)
         # Adding 100 as "Max Points" to make graphing functions work elsewhere
         self.master_spreadsheet.max_points_hash["Grade"] = 100
         
@@ -197,6 +178,19 @@ class Course:
         The object is the grade category, and the spreadsheet source (in this case "Master") is stored as the key for the dictionary stored in the attribute 
         spreadsheet_to_grade_items_hash. The definition is used below. 
         grade_category.spreadsheet_to_grade_items_hash[self.master_spreadsheet.source] = [column for column in self.master_spreadsheet.df.columns if grade_category.name in column]"""
+        
+        def medical_miss(row, category):        
+            # Inflating grade total for students who have medically excused abscences
+            if hasattr(category, "medical_miss_dict"):
+                if "Perm #" in row:
+                    dict = category.medical_miss_dict
+                    perm = row["Perm #"]
+                    if perm in dict.keys():
+                        # Finding the number of (not dropped) items that are graded and essentially incrementing it by 1
+                        num_grade_items = len(category.spreadsheet_to_grade_items_hash[self.master_spreadsheet.source]) - category.number_of_dropped_assignments
+                        row[category.name + " Total"] *= (num_grade_items / (num_grade_items - dict[perm]))
+            return row[category.name + " Total"]
+
         for grade_category in self.grade_categories:
             if grade_category.assignment_weighting == "equal":
                 for grade_cat_col_name in grade_category.spreadsheet_to_grade_items_hash[self.master_spreadsheet.source]:
@@ -221,16 +215,38 @@ class Course:
                 self.master_spreadsheet.df[f"{grade_category.name} Total"] *= 100/self.master_spreadsheet.max_points_hash[f"{grade_category.name} Total"]
                 self.master_spreadsheet.max_points_hash[f"{grade_category.name} Total"] = 100
                 #Rounding to Two Decimal Places
+                self.master_spreadsheet.df[f"{grade_category.name} Total"] = self.master_spreadsheet.df.apply(medical_miss, category = grade_category, axis=1)
                 self.master_spreadsheet.df[f"{grade_category.name} Total"] = self.master_spreadsheet.df[f"{grade_category.name} Total"].apply(np.round, decimals=2)
             else:
                 self.master_spreadsheet.df[f"{grade_category.name} Total"] = 0
+        
+        # Applying Webwork Extra Credit to the Midterm Grade.
+        def ww_extra_credit_to_midterm(row, column_names):   
+            # Applying Homework Extra Credit to Midterm Average. This assumes midterms are 40% and homework is 20%
+            if "Homework Total" in column_names:
+                if row["Homework Total"] > 100:
+                    # Take away homework extra credit
+                    extra = row["Homework Total"] - 100
+                    
+                    # Apply it to Midterm Total, up to 97%
+                    multiplier = 20/40 # Webwork is worth 20%, Midterms are worth 40%
+                    if row["Midterm Total"] < 97:
+                        row["Midterm Total"] = np.min([row["Midterm Total"] + multiplier*extra, 97])
+            return row["Midterm Total"]
+
+        ms_df = self.master_spreadsheet.df.copy()
+        self.master_spreadsheet.df["Midterm Total"] = ms_df.apply(lambda row: ww_extra_credit_to_midterm(row, ms_df.columns), axis = 1)
+        self.master_spreadsheet.df["Homework Total"] = ms_df["Homework Total"].apply(lambda total: min([total, 100]))
             
             
         # Curving individual columns before any totals are computed
         curve_setters_for_grade_items = [curve_setter for curve_setter in self.curve_setter_list if isinstance(curve_setter.grade_item_or_category, GradeCategory)]
         for curve_setter in curve_setters_for_grade_items:
             curve_setter.set_curve()
-        
+
+
+
+
         # Computing grades and assigning letter grades
         self.create_grade_columns()
 
@@ -296,7 +312,7 @@ class Course:
         if not hasattr(self, "master_spreadsheet"):
             raise Exception("You need to create a master spreadsheet first, which will compute grades. Then you can save them to a CSV file.")
         df = self.master_spreadsheet.df
-        df.to_csv("data/egrades_spreadsheet_for_grade_submission.csv", columns = ["Enrl Cd", "Perm #", "Letter Grade"], index = False)
+        df.to_csv("data/egrades_spreadsheet_for_grade_submission.csv", columns = ["First Name", "Last Name", "Enrl Cd", "Perm #", "Letter Grade"], index = False)
 
     def plot_letter_grades(self):
         df = self.master_spreadsheet.df
@@ -1192,7 +1208,7 @@ def letter_grade_assigner(row: pd.Series, final_condition: bool = None, great_ef
             return "huh?"
         elif num >= 97:
             return "A+"
-        elif num >= 92.5:
+        elif num >= 93:
             return "A"
         elif num >= 90:
             return "A-"
@@ -1200,19 +1216,19 @@ def letter_grade_assigner(row: pd.Series, final_condition: bool = None, great_ef
             return "B+"
         elif great_effort_rule and row[grade_column_name] >= 72.5: #For Math 34A/B's "Great Effort Rule" - never based on higher final grade!
             return "B"
-        elif num >= 82.5:
+        elif num >= 83:
             return "B"
         elif num >= 80:
             return "B-"
         elif num >= 77:
             return "C+"
-        elif num >= 72.5:
+        elif num >= 73:
             return "C"
         elif num >= 70:
             return "C-"
         elif num >= 67:
             return "D+"
-        elif num >= 62.5:
+        elif num >= 63:
             return "D"
         elif num >= 60:
             return "D-"
