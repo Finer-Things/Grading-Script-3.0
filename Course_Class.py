@@ -318,7 +318,6 @@ class Course:
         df = self.master_spreadsheet.df
         
         # Making a dictionary with all grade values set to 0 as a default to avoid key errors if there are no students with a given grade. 
-        from itertools import product
         letters = ["F", "D", "C", "B", "A"]
         letter_grades = ["F", "D-", "D", "D+", "C-", "C", "C+", "B-", "B", "B+", "A-", "A", "A+"]
         grade_values_dictionary = {letter_grade: 0 for letter_grade in letter_grades} | df[df["Final Total"] != 0]["Letter Grade"].value_counts().to_dict()
@@ -430,6 +429,8 @@ class Course:
 
         if df == None:
             df=self.master_spreadsheet.df
+            if "Total" in grade_item:
+                df = df[df[grade_item] != 0]
         
         sns.set()
         sns.set_palette("deep")
@@ -446,11 +447,11 @@ class Course:
                 max_score = self.master_spreadsheet.max_points_hash[grade_item]
 
             y = sns.histplot(col, 
-                        kde=True, 
-                        bins=[max_score/10*n for n in range(11)], 
-                        stat=stat, 
+                        kde = True, 
+                        bins = [max_score/10*n for n in range(11)], 
+                        stat = stat, 
                         #ax=axes[0], 
-                        color=graph_color).set(title = f"{grade_item.capitalize()}", 
+                        color=graph_color).set(title = grade_item.title(), 
                                                 xlabel = stat_label(stat_list, median_line_color = median_line_color, mean_line_color = mean_line_color)
                                                 )
             if stat_list[-1] > max_score:
@@ -459,6 +460,16 @@ class Course:
                             color=over_achiever_color
                             )
             
+            # Labels for Letter Grades:
+            letters = ["F", "D", "C", "B", "A"]
+            letter_grade_label_positions = [55, 65, 75, 85, 95]
+            for letter, label_pos in zip(letters, letter_grade_label_positions):
+                plt.text((label_pos/100)*max_score, 
+                        -3, 
+                        letter, 
+                        fontsize = 10
+                        )
+
             
             #Dashed lines for means%
             plt.axvline(df[grade_item].mean(), linestyle = "dashdot", linewidth = mean_line_width, color = mean_line_color, alpha = mean_line_alpha)
