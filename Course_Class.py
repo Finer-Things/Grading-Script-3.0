@@ -970,7 +970,7 @@ class Student:
         """A figure of the pie chart will be saved in the Images folder. """
                 
         # Setting the Course Default to the last course the student attended
-        if course is`` None:
+        if course is None:
             course = self.courses[-1]
         # Setting up the style argument - default to seaborn-paper, and numbers can also be entered
         style_list = ["seaborn-paper", "fivethirtyeight"] + mpl.style.available
