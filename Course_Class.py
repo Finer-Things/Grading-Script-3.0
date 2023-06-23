@@ -98,7 +98,7 @@ class Course:
         # Great Effort Rule Check
         if hasattr(self, "great_effort_rule"):
             great_effort_rule = self.great_effort_rule
-        elif great_effort_rule == None: 
+        elif great_effort_rule is None: 
             great_effort_rule = False
         
         # Final Condition Check
@@ -344,7 +344,7 @@ class Course:
             first_or_last_name = "First Name"
         display_list = ["First Name", "Last Name", "Grade"]+[grade_category.name+" Total" for grade_category in self.grade_categories]+["Letter Grade"]
         print_dataframe = self.master_spreadsheet.df[self.master_spreadsheet.df[first_or_last_name].apply(lambda entry: student_name.lower() in entry.lower())][display_list]
-        if position == None:
+        if position is None:
             for category in display_list:
                 print(f"{repr(category).split(' Total')[0][:10]:13}|", end="")
             print("")
@@ -427,7 +427,7 @@ class Course:
         if isinstance(style, int):
             style = style_list[style%len(style_list)]
 
-        if df == None:
+        if df is None:
             df=self.master_spreadsheet.df
             if "Total" in grade_item:
                 df = df[df[grade_item] != 0]
@@ -502,7 +502,7 @@ class GradeCategory:
     Note that this will actually have an equal assignment weighting, not standard, because the number of assignments to drop is > 0."""
     def __init__(self, name: str | None = None, percent_weight: float = 0, number_of_dropped_assignments: int = 0, assignment_weighting: str = "standard", course: Course | None = None):
         self.name = name
-        if course == None:
+        if course is None:
             course = Course.current_course
         self.course = course
         self.percent_weight = percent_weight
@@ -548,10 +548,10 @@ class Spreadsheet:
        2) if the associated course has an id format already, it will be set automatically for the spreadsheet as well. 
     """
     def __init__(self, file_name: str | None = None, df: pd.DataFrame | None = None, id_format: str | None = None, id_column_name: str = "SID", course: Course | None = None):
-        if course == None:
+        if course is None:
             course = Course.current_course
         self.course = course
-        if id_format == None:
+        if id_format is None:
             id_format = self.course.id_format
         self.file_name = file_name
         self.df = df
@@ -567,7 +567,7 @@ class Spreadsheet:
 class GradescopeSpreadsheet(Spreadsheet):
     def __init__(self, file_name: str | None = None, df: pd.DataFrame | None = None, id_format: str | None = None, id_column_name: str = "SID", course: Course | None = None):
         super().__init__(file_name, df, id_format, id_column_name, course)
-        if course == None:
+        if course is None:
             course = Course.current_course
         self.source = "Gradescope"
         # ^^Setting the "source" attribute to where the spreadsheet instance's dataframe came from. For this class, they all come from Gradescope. 
@@ -650,7 +650,7 @@ class WebworkSpreadsheet(Spreadsheet):
         webwork_total_col_name = [col_name for col_name in self.df.columns if r"%score" in col_name][0]
 
         # Student ID column Name entered as an argument at instantiation
-        if id_column_name == None: 
+        if id_column_name is None: 
             id_column_name = self.id_format
         
         if self.id_format == "NetID" and id_column_name == "login ID":
@@ -682,7 +682,7 @@ class GradeCalculator:
         self.course = course
     
     def compute_standard_grades(self, master_spreadsheet = None):
-        if master_spreadsheet == None:
+        if master_spreadsheet is None:
             master_spreadsheet = self.course.master_spreadsheet
         ## This class does nothing so far! I think I had planned to use it to compute grades, but I ended up just doing that in the .create_master_spreadsheet() method for the Course class.
 
@@ -743,7 +743,7 @@ class Student:
         """
         Returns a letter grade the student earned for a given course. Defaults to the last course on the student's .courses list. 
         """
-        if course == None:
+        if course is None:
             course = self.courses[-1]
         return self.grades[course]
     
@@ -751,7 +751,7 @@ class Student:
         """
         This will hopefully replace the corresponding Course Class method (same name, I think) that has a search for students
         """
-        if course == None:
+        if course is None:
             course = Course.current_course
         for category in self.grade_breakdown[course].keys():
             display_grade = repr(category).__str__().split()[0]
@@ -773,7 +773,7 @@ class Student:
         average grade you need over those categories combined. 
         """
         
-        if course == None:
+        if course is None:
             course = Course.current_course
 
         
@@ -820,11 +820,11 @@ class Student:
         """A figure of the pie chart will be saved in the Images folder. """
                 
         # Setting the Course Default to the last course the student attended
-        if course == None:
+        if course is None:
             course = self.courses[-1]
         # Setting up the style argument - default to seaborn-paper, and numbers can also be entered
         style_list = ["seaborn-paper", "fivethirtyeight"] + mpl.style.available
-        if style == None:
+        if style is None:
             style = "seaborn-paper"
         elif isinstance(style, int):
             style = style_list[style%len(style_list)]
@@ -900,11 +900,11 @@ class Student:
         """A figure of the pie chart will be saved in the Images folder. """
                 
         # Setting the Course Default to the last course the student attended
-        if course == None:
+        if course is None:
             course = self.courses[-1]
         # Setting up the style argument - default to seaborn-paper, and numbers can also be entered
         style_list = ["seaborn-paper", "fivethirtyeight"] + mpl.style.available
-        if style == None:
+        if style is None:
             style = "seaborn-paper"
         elif isinstance(style, int):
             style = style_list[style%len(style_list)]
@@ -970,11 +970,11 @@ class Student:
         """A figure of the pie chart will be saved in the Images folder. """
                 
         # Setting the Course Default to the last course the student attended
-        if course == None:
+        if course is`` None:
             course = self.courses[-1]
         # Setting up the style argument - default to seaborn-paper, and numbers can also be entered
         style_list = ["seaborn-paper", "fivethirtyeight"] + mpl.style.available
-        if style == None:
+        if style is None:
             style = "seaborn-paper"
         elif isinstance(style, int):
             style = style_list[style%len(style_list)]
@@ -1034,11 +1034,11 @@ class Student:
     #     """A figure of the pie chart will be saved in the Images folder. """
                 
     #     # Setting the Course Default to the last course the student attended
-    #     if course == None:
+    #     if course is None:
     #         course = self.courses[-1]
     #     # Setting up the style argument - default to seaborn-paper, and numbers can also be entered
     #     style_list = ["seaborn-paper", "fivethirtyeight"] + mpl.style.available
-    #     if style == None:
+    #     if style is None:
     #         style = "seaborn-paper"
     #     elif isinstance(style, int):
     #         style = style_list[style%len(style_list)]
@@ -1116,7 +1116,7 @@ class CurveSetter:
         # Numerical value used in curving
         self.value = value
         # Setting the course value by the grade_item_category in the case that it's a GradeCategory
-        if course == None:
+        if course is None:
             if isinstance(grade_item_or_category, GradeCategory):
                 course == self.grade_item_or_category.course
             else: 
@@ -1141,14 +1141,14 @@ class CurveSetter:
 
         # Determining the dataframe and column to be curved
         # dataframe
-        if spreadsheet == None:
+        if spreadsheet is None:
             spreadsheet = self.course.master_spreadsheet
         # Adds this object to the list of grade setters for self.course.
         self.course.curve_setter_list.append(self)
 
     def set_curve(self) -> None:
         # Column to be curved    
-        if self.spreadsheet == None:
+        if self.spreadsheet is None:
             self.spreadsheet = self.course.master_spreadsheet
         if isinstance(self.grade_item_or_category, GradeCategory):
             if self.grade_item_or_category.course == self.course:
