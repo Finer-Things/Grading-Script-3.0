@@ -1,4 +1,4 @@
-# Grading-Script-3.0
-The course_class.py file started as a refactor of the Grading Script 2.0 with lots of smaller classes that "talk to each other", but it's quickly becoming capable of a lot more because of this new design. One of the biggest perks is being able to create a student class that will keep a roster of every student I've had as well as all of the courses they've been in. This insfrastructure is already in the code, but I would like to implement statistics for class ranking, percentile on grade categories (particularly midterms and finals) and find a nice data visualization that would present all of this information quickly. 
- 
-Plaese see the Grading Script 2.0 if you would like to see a completed version used by a Jupyter Notebook to calculate grades and generate data visualizations based on the student data. 
+This project is all about the Course Class module, which provides an object-oriented framework to automate just about everything I need to do with student data in a variety of ways, differing with each course I teach. 
+# Course Class
+## Grading Functionality
+* Tracks student data across the different record-keeping platforms, navigating two student id systems used by the campus. 
