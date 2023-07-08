@@ -11,7 +11,7 @@ This project is all about the Course Class module, which provides an object-orie
 *   Keyword search functionality within each course to find students and see their current breakdown, view a pie chart of ther performance by category, and calculate what score they would need on the final in order to obtain a desired grade.
 Examples:
 * student.show_grade_breakdown()
-![image](https://github.com/Finer-Things/Grading-Script-3.0/assets/96888276/d0d746c9-8c3e-4535-910a-2bdd8a16e527)
+![image](https://github.com/Finer-Things/Grading-Script-3.0/assets/96888276/f02b49ce-881c-4081-a643-92ad089968a6)
 * student.create_pie_chart()
 ![Student Pie Chart](https://github.com/Finer-Things/Grading-Script-3.0/assets/96888276/6c92dfe1-d56a-4abb-b494-a12f319f3da4)
 
