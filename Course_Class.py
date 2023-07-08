@@ -488,13 +488,6 @@ class Course:
             plt.show()
             time.sleep(5)
             plt.close("all")
-    
-        
-
-
-
-
-
 
 
 class GradeCategory:
