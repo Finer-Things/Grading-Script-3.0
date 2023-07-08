@@ -12,10 +12,10 @@ This project is all about the Course Class module, which provides an object-orie
 Examples:
 * student.show_grade_breakdown()
 
-    James Bond licensetokill007
-    Midterm      |Quiz         |Homework     |Final        |Grade        |Letter Grade |
-    93.695       |91.0         |100.0        |74.5         |88.93        |B+           |
-    All grade categories have assignments in them.
+*    James Bond licensetokill007
+*    Midterm      |Quiz         |Homework     |Final        |Grade        |Letter Grade |
+*    93.695       |91.0         |100.0        |74.5         |88.93        |B+           |
+*    All grade categories have assignments in them.
 * student.create_pie_chart()
 ![Student Pie Chart](https://github.com/Finer-Things/Grading-Script-3.0/assets/96888276/6c92dfe1-d56a-4abb-b494-a12f319f3da4)
 
