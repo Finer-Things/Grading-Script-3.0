@@ -314,7 +314,7 @@ class Course:
         df = self.master_spreadsheet.df
         df.to_csv("data/egrades_spreadsheet_for_grade_submission.csv", columns = ["First Name", "Last Name", "Enrl Cd", "Perm #", "Letter Grade"], index = False)
 
-    def plot_letter_grades(self):
+    def plot_letter_grades(self, save_figure: bool = False):
         df = self.master_spreadsheet.df
         
         # Making a dictionary with all grade values set to 0 as a default to avoid key errors if there are no students with a given grade. 
@@ -334,6 +334,9 @@ class Course:
 
         ax.legend(["+", " ", "-"])
 
+        if save_figure == True:
+            plt.savefig(f"Images/{self.quarter} {self.name} Letter Grades.png", bbox_inches = "tight")
+        
         plt.show()
 
 
@@ -398,23 +401,22 @@ class Course:
             
 
     def plot(self, 
-                    grade_item: str, 
-                    style: int | str = "seaborn-paper",
-                    # int for index (with "wordwrap") in style_list, str for style name
-                    df: pd.DataFrame = None, 
-                    max_score: float = 100, 
-                    auto_max_score: bool = True, 
-                    stat: str = "count", 
-                    save_figure: bool = False, 
-                    graph_color: str = "mediumpurple", 
-                    over_achiever_color: str = "rebeccapurple",
-                    mean_line_color: str = "darkred", 
-                    mean_line_width: float = 1.5,
-                    mean_line_alpha: float = .95, 
-                    median_line_color: str = "mediumblue", 
-                    median_line_width: float = 2,
-                    median_line_alpha: float = .95, 
-                    show_plot: bool = True
+             grade_item: str, 
+             style: int | str = "seaborn-paper", # int for index (with "wordwrap") in style_list, str for style name
+             save_figure=False, 
+             df: pd.DataFrame = None, 
+             max_score: float = 100, 
+             auto_max_score: bool = True, 
+             stat: str = "count", 
+             graph_color: str = "mediumpurple", 
+             over_achiever_color: str = "rebeccapurple",
+             mean_line_color: str = "darkred", 
+             mean_line_width: float = 1.5,
+             mean_line_alpha: float = .95, 
+             median_line_color: str = "mediumblue", 
+             median_line_width: float = 2,
+             median_line_alpha: float = .95, 
+             show_plot: bool = True
                    ):
         """Plots a single grade item from one of the class's dataframes. """
 
@@ -525,14 +527,18 @@ class GradeCategory:
                 f"It's worth {self.percent_weight}% of the course grade and the lowest {self.number_of_dropped_assignments} grade items will be dropped. \n" + \
                 f"Its assignments have a(n) {self.assignment_weighting} weighting when the total is calculated."
 
-    def plot(self, items: list | str = "all") -> None:
+    def plot(self, 
+             items: list | str = "all", 
+             save_figure: bool = False, 
+             ) -> None:
         if items == "all":
             for item in self.grade_items:
-                self.course.plot(item)
+                self.course.plot(item, save_figure=save_figure)
+
         elif isinstance(items, list):
             for item in items:
                 self.course.plot(item)
-        self.course.plot(f"{self.name} Total")
+        self.course.plot(f"{self.name} Total", save_figure=save_figure)
 
 class Spreadsheet:
     """
@@ -774,7 +780,7 @@ class Student:
         incomplete_weight = sum([cat.percent_weight for cat in empty_cats])
         # Escape for no empty categories
         if empty_cats == []:
-            print("All grade categories have assignments in them.")
+            print("\nAll grade categories have assignments in them.")
             return None
         
         non_empty_cats = [cat for cat in course.grade_categories if len(cat.grade_items) > 0]
