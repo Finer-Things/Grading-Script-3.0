@@ -9,11 +9,13 @@ This project is all about the Course Class module, which provides an object-orie
 *   Grade category totals can be calculated either by raw score or with assignments weighted equally. A number can be specified as the number of lowest grade items to be dropped in that category during this computation. Grade categories can have no assignments while grades are computed without a division by zero error for grade computation. A "grade so far" is calculated instead for each student.
 *   Tracks student performance across multiple courses to facilitate the process of writing letters of recommendation.
 *   Keyword search functionality within each course to find students and see their current breakdown, view a pie chart of ther performance by category, and calculate what score they would need on the final in order to obtain a desired grade.
-*       Example: student.show_grade_breakdown() and student.create_pie_chart() displayse...
-*       James Bond licensetokill007
-        Midterm      |Quiz         |Homework     |Final        |Grade        |Letter Grade |
-        93.695       |91.0         |100.0        |74.5         |88.93        |B+           |
-        All grade categories have assignments in them.
+*       Examples:
+*           student.show_grade_breakdown()
+*               James Bond licensetokill007
+                Midterm      |Quiz         |Homework     |Final        |Grade        |Letter Grade |
+                93.695       |91.0         |100.0        |74.5         |88.93        |B+           |
+                All grade categories have assignments in them.
+*            student.create_pie_chart()
 ![Student Pie Chart](https://github.com/Finer-Things/Grading-Script-3.0/assets/96888276/6c92dfe1-d56a-4abb-b494-a12f319f3da4)
 
 ## Data Visualizations
