@@ -7,7 +7,7 @@ This project is all about the Course Class module, which provides an object-orie
   * Creates a csv file formatted for grade submission at the end of the quarter, so submitting grades is simply a drag and drop process.
   * Flexible letter grade assignment to accomodate Math 34's "Great Effort Rule."
   * Grade category totals can be calculated either by raw score or with assignments weighted equally. A number can be specified as the number of lowest grade items to be dropped in that category during this computation. Grade categories can have no assignments while grades are computed without a division by zero error for grade computation. A "grade so far" is calculated instead for each student. As soon as grade category totals are set, you can make a pie chart to show the breakdown by category. I use these for my syllabus at the beginning of each quarter.
-![Spring 2023 Math 4B Grade Category Pie Chart](https://github.com/Finer-Things/Grading-Script-3.0/assets/96888276/0aec7c0a-4141-4360-a252-2310389a6e47)
+![Spring 2023 Math 4B Grade Category Pie Chart](https://github.com/Finer-Things/Grading-Script-3.0/assets/96888276/675ddeab-5127-427e-8d00-76a9d98c4e46)
   * Tracks student performance across multiple courses to facilitate the process of writing letters of recommendation.
   * Keyword search functionality within each course to find students and see their current breakdown, view a pie chart of ther performance by category, and calculate what score they would need on the final in order to obtain a desired grade.
 Examples:
