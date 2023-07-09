@@ -285,7 +285,7 @@ class Course:
         grade_item_percentages = [category.percent_weight for category in self.grade_categories]
         #plt.pie(grade_item_percentages, labels = grade_items_list, autopct='%0.1f%%')
         explode = [.05,.05,.05,.05, .05] # To slice the perticuler section
-        colors = ["blue", "darkorange", "forestgreen", "purple",'g', "b"][:len(self.grade_categories)] # Color of each section
+        colors = ["blue", "darkorange", "forestgreen", "rebeccapurple",'g', "b"][:len(self.grade_categories)] # Color of each section
         textprops = {"fontsize":30, "color":"w"} # Font size of text in pie chart
 
         fig, ax = plt.subplots()
@@ -314,7 +314,7 @@ class Course:
         df = self.master_spreadsheet.df
         df.to_csv("data/egrades_spreadsheet_for_grade_submission.csv", columns = ["First Name", "Last Name", "Enrl Cd", "Perm #", "Letter Grade"], index = False)
 
-    def plot_letter_grades(self, save_figure: bool = False):
+    def plot_letter_grades(self, save_figure: bool = False, colors = ["b", "w", "r"]):
         df = self.master_spreadsheet.df
         
         # Making a dictionary with all grade values set to 0 as a default to avoid key errors if there are no students with a given grade. 
@@ -328,9 +328,9 @@ class Course:
         regulars = np.array([grade_values_dictionary[letter] for letter in letters])
         pluses = np.array([0] + [grade_values_dictionary[letter + "+"] for letter in letters[1:]])
 
-        ax.bar(letters, pluses + regulars + minuses, color = "gold")
-        ax.bar(letters, regulars + minuses, color = "blue")
-        ax.bar(letters, minuses, color = "darkred")
+        ax.bar(letters, pluses + regulars + minuses, color = colors[0])
+        ax.bar(letters, regulars + minuses, color = colors[1])
+        ax.bar(letters, minuses, color = colors[2])
 
         ax.legend(["+", " ", "-"])
 
@@ -853,43 +853,40 @@ class Student:
         from itertools import chain
         # Pie Chart Labels: the commented-out line below expresses the category as a percent grade out of the category weight. I think this probably hard for students to read. 
         # pie_chart_labels = list(chain.from_iterable([[f"{naming_dictionary[category.name]}: {np.rint(self.grade_breakdown[course][category])}% of {category.percent_weight}", ""] for category in course.grade_categories]))
-        pie_chart_labels = list(chain.from_iterable([[f"{naming_dictionary[category.name]} Score", ""] for category in course.grade_categories]))
+        pie_chart_labels = list(chain.from_iterable([[f"{int(np.round(self.grade_breakdown[course][category],decimals = 0))}% for {naming_dictionary[category.name]} Grade", ""] for category in course.grade_categories]))
         pie_chart_percentages = list(chain.from_iterable([[self.grade_breakdown[course][category]*.01*category.percent_weight, max((100-self.grade_breakdown[course][category])*.01*category.percent_weight, 0)] for category in course.grade_categories]))
         display_percentages = list(chain.from_iterable([[f"{self.grade_breakdown[course][category]}% of {category.percent_weight}%", ""] for category in course.grade_categories]))
 
 
         #plt.pie(grade_item_percentages, labels = grade_items_list, autopct='%0.1f%%')
         explode = [.05,.05,.05,.05, .05] # To slice the perticuler section
-        grade_percentage_colors = ["blue", "darkorange", "forestgreen", "purple",'g', "b"][:len(course.grade_categories)] # Color of each section
+        grade_percentage_colors = ["blue", "darkorange", "forestgreen", "rebeccapurple",'g', "b"][:len(course.grade_categories)] # Color of each section
         # The colors list is created by staggering white slices with the grade percentage colors. 
         colors = list(chain.from_iterable([[grade_percentage_color, darken_color(grade_percentage_color, .7)] for grade_percentage_color in grade_percentage_colors]))
         textprops = {"fontsize":20, "color":"w"} # Font size and color of text in pie chart
 
         fig1, ax = plt.subplots()
         with plt.style.context(style):
-            wedges,labels,percent_text = ax.pie(pie_chart_percentages, 
+            wedges,labels = ax.pie(pie_chart_percentages, 
                             labels = pie_chart_labels, 
                             radius = 2, 
                             explode=None, 
                             colors=colors, 
-                            autopct='%.0f%%', 
+                            # autopct='%.0f%%', 
                             wedgeprops = {"edgecolor" : "white",
                                           'linewidth': 2,
                                           'antialiased': True},
                             textprops=textprops)
-            ax.set_title(f"{self.first_name} {self.last_name} Grade Breakdown", y=1, pad=90)
+            ax.set_title(f"{self.first_name} {self.last_name} {np.round(self.grades[course][0],decimals=0)}% Grade Breakdown", y=1, pad=120, fontdict={"fontsize": 20})
             for label, color in zip(labels, colors):
                 label.set_color(color)
             
-            for i, pct in enumerate(percent_text):
-                if i%2 == 0:
-                    pct.set_color("white")
-                elif i%2 == 1:
-                    pct.set_color("darkgrey")
-                # pct.set_text("")
-            # [percent_text[i].set_color('white') for i in range(len(m)) if i%2 == 0]
-            # [percent_text[i].set_color('darkgrey') for i in range(len(m)) if i%2 == 1]
-            # [percent_text[i].set_text("") for i in range(len(m))]# if i%2 == 1]
+            # for i, pct in enumerate(percent_text):
+            #     if i%2 == 0:
+            #         pct.set_color("white")
+            #     elif i%2 == 1:
+            #         pct.set_color("darkgrey")
+                
             
         plt.savefig(f"Images/Student Grade Breakdown Pie Charts/{self.first_name} {self.last_name} {course.quarter} {course.name} Grade Breakdown Pie Chart.png", bbox_inches = "tight")
         # plt.close()
