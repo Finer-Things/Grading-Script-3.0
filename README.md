@@ -2,7 +2,7 @@ This project is all about the Course Class module, which provides an object-orie
 # Course Class
 ## Grading Functionality
 * Tracks student data across several record-keeping platforms, simultaneously handling two conflicting student id systems used by my own campus. 
-* Automates the calculation of grades based on scores, grade categories (e.g. "Quiz Total", "Homework Total", etc.) and their weights.
+* Automates the calculation of grades with a customizable framework based on scores, grade categories (e.g. "Quiz Total", "Homework Total", etc.) and their weights.
 *   Multiple curving methods can be applied to individual assignments/exams, or to an entire grade category. See the CurveSetter class inside the file for a list of options.
 *   Creates a csv file formatted for grade submission at the end of the quarter, so submitting grades is just a drag and drop process.
 *   Multiple letter grade schemes can be used
