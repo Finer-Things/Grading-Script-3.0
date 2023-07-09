@@ -1,6 +1,6 @@
 This project is all about the Course Class module, which provides an object-oriented framework to automate just about everything I need to do with student data in a variety of ways, differing with each course I teach. 
 # Course Class
-## Grading Functionality
+## Record Keeping and Grade Computations
 * Tracks student data across several record-keeping platforms, simultaneously handling two conflicting student id systems used by my own campus. 
 * Automates the calculation of grades with a customizable framework based on scores, grade categories (e.g. "Quiz Total", "Homework Total", etc.) and their weights.
   * Multiple curving methods can be applied to individual assignments/exams, or to an entire grade category. See the CurveSetter class inside the file for a list of options.
