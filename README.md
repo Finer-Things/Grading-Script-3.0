@@ -14,7 +14,8 @@ Examples:
     * student.show_grade_breakdown()
 ![image](https://github.com/Finer-Things/Grading-Script-3.0/assets/96888276/f02b49ce-881c-4081-a643-92ad089968a6)
     * student.create_pie_chart()
-![Spring 2023 Math 4B Grade Category Pie Chart](https://github.com/Finer-Things/Grading-Script-3.0/assets/96888276/1223d508-2744-4b98-92fe-45817f6b3b41)
+![James Bond Spring 2023 Math 4B Grade Breakdown Pie Chart](https://github.com/Finer-Things/Grading-Script-3.0/assets/96888276/b8eaf83e-306c-4616-9a17-eede7915e530)
+
 
 ## Data Visualizations
 * Performance Histogram: This histogram can be easily generated for any assignment, exam, category total (quiz grade, homework grade, etc) or overall performance to-date in the class. The class-wide scores are visible as a distribution using a kernel density estimator along with the histogram so the modality of student performance can be quickly assessed. The bins are by letter grade range (A's, B's, etc) and max scores are retained behind the scenes to allow for any scores over 100% to be displayed so they can be given their own bin. This bin has a smaller width and darker color. The mean and median are visually included with dotted lines and basic stats are printed at the bottom of the image.
