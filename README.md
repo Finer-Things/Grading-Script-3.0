@@ -10,7 +10,8 @@ This project is all about the Course Class module, which provides an object-orie
 ![Spring 2023 Math 4B Grade Category Pie Chart](https://github.com/Finer-Things/Grading-Script-3.0/assets/96888276/675ddeab-5127-427e-8d00-76a9d98c4e46)
   * Tracks student performance across multiple courses to facilitate the process of writing letters of recommendation.
   * Keyword search functionality within each course to find students and see their current breakdown, view a pie chart of ther performance by category, and calculate what score they would need on the final in order to obtain a desired grade.
-Examples:
+  Examples:
+  Grade breakdown and pie chart for an actual student whose name and netID were changed for anonymity. 
     * student.show_grade_breakdown()
 ![image](https://github.com/Finer-Things/Grading-Script-3.0/assets/96888276/f02b49ce-881c-4081-a643-92ad089968a6)
     * student.create_pie_chart()
