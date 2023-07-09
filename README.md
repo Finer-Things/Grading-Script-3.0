@@ -10,9 +10,9 @@ This project is all about the Course Class module, which provides an object-orie
   * Tracks student performance across multiple courses to facilitate the process of writing letters of recommendation.
   * Keyword search functionality within each course to find students and see their current breakdown, view a pie chart of ther performance by category, and calculate what score they would need on the final in order to obtain a desired grade.
 Examples:
-* student.show_grade_breakdown()
+    * student.show_grade_breakdown()
 ![image](https://github.com/Finer-Things/Grading-Script-3.0/assets/96888276/f02b49ce-881c-4081-a643-92ad089968a6)
-* student.create_pie_chart()
+    * student.create_pie_chart()
 ![Student Pie Chart](https://github.com/Finer-Things/Grading-Script-3.0/assets/96888276/6c92dfe1-d56a-4abb-b494-a12f319f3da4)
 
 ## Data Visualizations
