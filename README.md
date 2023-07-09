@@ -4,11 +4,11 @@ This project is all about the Course Class module, which provides an object-orie
 * Tracks student data across several record-keeping platforms, simultaneously handling two conflicting student id systems used by my own campus. 
 * Automates the calculation of grades with a customizable framework based on scores, grade categories (e.g. "Quiz Total", "Homework Total", etc.) and their weights.
   * Multiple curving methods can be applied to individual assignments/exams, or to an entire grade category. See the CurveSetter class inside the file for a list of options.
- *  Creates a csv file formatted for grade submission at the end of the quarter, so submitting grades is just a drag and drop process.
- * Multiple letter grade schemes can be used
- * Grade category totals can be calculated either by raw score or with assignments weighted equally. A number can be specified as the number of lowest grade items to be dropped in that category during this computation. Grade categories can have no assignments while grades are computed without a division by zero error for grade computation. A "grade so far" is calculated instead for each student.
- * Tracks student performance across multiple courses to facilitate the process of writing letters of recommendation.
- * Keyword search functionality within each course to find students and see their current breakdown, view a pie chart of ther performance by category, and calculate what score they would need on the final in order to obtain a desired grade.
+  *  Creates a csv file formatted for grade submission at the end of the quarter, so submitting grades is just a drag and drop process.
+  * Multiple letter grade schemes can be used
+  * Grade category totals can be calculated either by raw score or with assignments weighted equally. A number can be specified as the number of lowest grade items to be dropped in that category during this computation. Grade categories can have no assignments while grades are computed without a division by zero error for grade computation. A "grade so far" is calculated instead for each student.
+  * Tracks student performance across multiple courses to facilitate the process of writing letters of recommendation.
+  * Keyword search functionality within each course to find students and see their current breakdown, view a pie chart of ther performance by category, and calculate what score they would need on the final in order to obtain a desired grade.
 Examples:
 * student.show_grade_breakdown()
 ![image](https://github.com/Finer-Things/Grading-Script-3.0/assets/96888276/f02b49ce-881c-4081-a643-92ad089968a6)
