@@ -15,7 +15,8 @@ This project is all about the Course Class module, which provides an object-orie
   Grade breakdown and pie chart for an actual student whose name and netID were changed for anonymity. 
     * student.show_grade_breakdown()
       ```txt
-      James Bond licensetokill007
+      Student: James Bond
+      netID: licensetokill007
       Midterm      |Quiz         |Homework     |Final        |Grade        |Letter Grade | 
       93.695       |91.0         |100.0        |74.5         |88.93        |B+           | 
       All grade categories have assignments in them.
