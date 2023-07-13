@@ -14,7 +14,12 @@ This project is all about the Course Class module, which provides an object-orie
   Examples:
   Grade breakdown and pie chart for an actual student whose name and netID were changed for anonymity. 
     * student.show_grade_breakdown()
-![image](https://github.com/Finer-Things/Grading-Script-3.0/assets/96888276/f02b49ce-881c-4081-a643-92ad089968a6)
+      ```txt
+      James Bond licensetokill007
+      Midterm      |Quiz         |Homework     |Final        |Grade        |Letter Grade |
+      93.695       |91.0         |100.0        |74.5         |88.93        |B+           |
+      All grade categories have assignments in them.
+      ```
     * student.create_pie_chart()
 ![James Bond Spring 2023 Math 4B Grade Breakdown Pie Chart](https://github.com/Finer-Things/Grading-Script-3.0/assets/96888276/b8eaf83e-306c-4616-9a17-eede7915e530)
 
