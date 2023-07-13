@@ -16,8 +16,8 @@ This project is all about the Course Class module, which provides an object-orie
     * student.show_grade_breakdown()
       ```txt
       James Bond licensetokill007
-      Midterm      |Quiz         |Homework     |Final        |Grade        |Letter Grade |
-      93.695       |91.0         |100.0        |74.5         |88.93        |B+           |
+      Midterm      |Quiz         |Homework     |Final        |Grade        |Letter Grade | 
+      93.695       |91.0         |100.0        |74.5         |88.93        |B+           | 
       All grade categories have assignments in them.
       ```
     * student.create_pie_chart()
