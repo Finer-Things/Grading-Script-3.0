@@ -467,9 +467,9 @@ class Course:
             letter_grade_label_positions = [55, 65, 75, 85, 95]
             for letter, label_pos in zip(letters, letter_grade_label_positions):
                 plt.text((label_pos/100)*max_score, 
-                        -3, 
+                        -10, 
                         letter, 
-                        fontsize = 10
+                        fontsize = 15
                         )
 
             
@@ -752,12 +752,25 @@ class Student:
         """
         if course is None:
             course = Course.current_course
+        
+        # Print Student Name
+        print(f"{'Name:':14}{self.first_name} {self.last_name}")
+        
+        # Print Student NetID
+        if hasattr(self, "NetID"):
+            print(f"{'NetID:':14}{self.NetID}")
+        
+        # Print Column Labels for Grade Breakdown
+        print(f"{'Category:':14}|", end="")
         for category in self.grade_breakdown[course].keys():
             display_grade = repr(category).__str__().split()[0]
             print(f"{display_grade[:10]:13}|", end="")
         print(f"{'Grade'[:10]:13}|", end="")
         print(f"{'Letter Grade'[:12]:13}|", end="")
         print("")
+        
+        # Print Values for each Column
+        print(f"{'Outcome:':14}|", end="")
         for grade in self.grade_breakdown[course].values():
             print(f"{grade.__str__()[:10]:13}|", end="")
         for info in self.grades[course]:
