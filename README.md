@@ -1,3 +1,5 @@
+Note: Included is only limited code from the project. A gui and database for student records has been developed but these are kept private. Please contact me if you are interested in using the full version. 
+<hrule/>
 This project is all about the Course Class module, which provides an object-oriented framework to automate just about everything I need to do with student data in a variety of ways, differing with each course I teach. 
 # Course Class
 ## Record Keeping and Grade Computations
